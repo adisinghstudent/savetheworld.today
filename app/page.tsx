@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 interface SearchResult {
   title: string;
@@ -59,28 +60,14 @@ export default function Home() {
         {/* Logo */}
         <div className="mb-12 flex justify-center">
           <div className="flex items-center gap-2">
-            <svg
-              className="h-8 w-8"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <rect
-                x="2"
-                y="2"
-                width="20"
-                height="20"
-                rx="2"
-                className="fill-blue-600"
-              />
-              <path
-                d="M8 8L16 16M16 8L8 16"
-                className="stroke-white"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span className="text-2xl font-semibold text-black dark:text-white">
+            <Image
+              src="/logo.png"
+              alt="Exa logo"
+              width={32}
+              height={32}
+              className="h-8 w-auto"
+            />
+            <span className="text-[32px] font-semibold leading-none text-black dark:text-white">
               exa
             </span>
           </div>
@@ -94,12 +81,12 @@ export default function Home() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Find anything..."
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 pr-12 text-base text-black outline-none transition-colors focus:border-blue-600 dark:border-gray-700 dark:bg-black dark:text-white"
+              className="w-full border border-gray-300 px-4 py-3 pr-12 text-base text-black outline-none transition-colors focus:border-blue-600 dark:border-gray-700 dark:bg-black dark:text-white"
             />
             <button
               type="submit"
               disabled={loading || !query.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
               <svg
                 className="h-5 w-5"
@@ -122,7 +109,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setMode(mode === "auto" ? "fast" : "auto")}
-              className="flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900"
+              className="flex items-center gap-2 border border-gray-300 px-4 py-2 text-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24">
                 <path
@@ -149,7 +136,7 @@ export default function Home() {
 
         {/* Error State */}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          <div className="border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
             {error}
           </div>
         )}
@@ -163,7 +150,7 @@ export default function Home() {
             {results.map((result, idx) => (
               <div
                 key={idx}
-                className="rounded-lg border border-gray-200 p-4 transition-colors hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
+                className="border border-gray-200 p-4 transition-colors hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
               >
                 <a
                   href={result.url}
