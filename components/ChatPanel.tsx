@@ -96,16 +96,22 @@ export default function ChatPanel() {
 
   // Wrapper to send message with current browserUrl
   const handleSendMessage = async (content: string) => {
+    if (isLoading) return; // Prevent duplicate sends
+
     console.log("[ChatPanel] Sending message with browserUrl:", browserUrlRef.current);
+
+    // Generate unique IDs using timestamp + random
+    const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // Add user message to UI immediately
     const userMessage = {
-      id: Date.now().toString(),
+      id: userMessageId,
       role: "user" as const,
       content,
     };
 
-    setMessages([...messages, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
@@ -132,7 +138,6 @@ export default function ChatPanel() {
 
       const decoder = new TextDecoder();
       let assistantContent = "";
-      const assistantId = (Date.now() + 1).toString();
 
       // Read the text stream
       while (true) {
@@ -142,21 +147,20 @@ export default function ChatPanel() {
         const text = decoder.decode(value, { stream: true });
         assistantContent += text;
 
-        console.log("[ChatPanel] Received chunk:", text);
-
         // Update messages with streaming response
         setMessages(prev => {
-          // Remove any existing assistant message and add updated one
-          const filtered = prev.filter(m => m.id !== assistantId);
-          return [...filtered, userMessage, {
-            id: assistantId,
+          // Remove existing assistant message if present
+          const withoutAssistant = prev.filter(m => m.id !== assistantMessageId);
+          // Add updated assistant message
+          return [...withoutAssistant, {
+            id: assistantMessageId,
             role: "assistant" as const,
             content: assistantContent,
           }];
         });
       }
 
-      console.log("[ChatPanel] Stream complete. Final content:", assistantContent);
+      console.log("[ChatPanel] Stream complete");
     } catch (error) {
       console.error("[ChatPanel] Error sending message:", error);
     } finally {

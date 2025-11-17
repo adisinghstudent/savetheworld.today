@@ -9,8 +9,8 @@ Exa Browser merges a Google-like search interface with AI capabilities to provid
 - **Intelligent Search**: Natural language search powered by Exa's AI-first search engine
 - **Categorized Results**: Automatically organized results across Videos, Social Media, and Articles
 - **Integrated Browser**: View webpages directly within the interface with proxy support for blocked sites
-- **AI Assistant**: Chat panel with access to Exa tools for webpage analysis and content retrieval
-- **Real-time Content Crawling**: Agent can crawl and analyze any webpage using Exa's content extraction
+- **AI Assistant**: Chat panel with pre-crawled webpage content for instant analysis and responses
+- **Fast Content Access**: Pages are pre-crawled using Exa for speed, eliminating wait times during conversations
 
 ## Features
 
@@ -29,7 +29,7 @@ Exa Browser merges a Google-like search interface with AI capabilities to provid
 
 ### AI Chat Panel
 - Context-aware assistant using Groq's Llama 3.3 70B model
-- Automatic webpage content extraction via Exa tools
+- Pre-crawled webpage content for instant responses without delays
 - Streaming responses with real-time updates
 - Copy and regenerate message functionality
 - Visual indicators for current page context
@@ -45,8 +45,8 @@ You'll need two free API keys:
 
 1. Clone the repository:
 ```bash
-git clone <your-repo-url>
-cd oppurtunities-exa
+git clone https://github.com/adisinghstudent/exa-browser
+cd exa-browser
 ```
 
 2. Install dependencies:
@@ -91,8 +91,8 @@ bun run dev
 ### AI Assistant
 1. Click "Ask Page" to open the chat panel
 2. Ask questions about the currently open webpage
-3. The assistant will automatically crawl and analyze the page content using Exa
-4. Get summaries, extract specific information, or have a conversation about the content
+3. The page content is pre-crawled using Exa for instant responses
+4. Get summaries, extract specific information, or have a conversation about the content without waiting
 
 ## Tech Stack
 
@@ -110,7 +110,7 @@ bun run dev
 ## API Routes
 
 - `/api/exa` - Handles search requests with multiple result type configurations
-- `/api/chat` - Manages AI chat with Exa tool integration
+- `/api/chat` - Manages AI chat with pre-crawled webpage content for fast responses
 - `/api/proxy` - Proxies webpage content for sites that block iframes
 
 ## Optional Configuration
@@ -142,5 +142,3 @@ Feel free to:
 - Submit pull requests with improvements
 - Share your ideas and suggestions
 - Help improve documentation
-
-# exa-browser

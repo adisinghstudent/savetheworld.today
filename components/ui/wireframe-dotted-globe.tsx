@@ -131,6 +131,8 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
 
     const allDots: DotData[] = []
     let landFeatures: any
+    let globeOpacity = 0
+    let isAnimatingIn = false
 
     const render = () => {
       // Clear canvas
@@ -138,6 +140,15 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
 
       const currentScale = projection.scale()
       const scaleFactor = currentScale / radius
+
+      // Animate opacity on initial load
+      if (isAnimatingIn && globeOpacity < 1) {
+        globeOpacity = Math.min(1, globeOpacity + 0.02)
+      }
+
+      // Save context state
+      context.save()
+      context.globalAlpha = globeOpacity
 
       // Draw ocean (globe background)
       context.beginPath()
@@ -155,9 +166,9 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
         path(graticule())
         context.strokeStyle = "#ffffff"
         context.lineWidth = 1 * scaleFactor
-        context.globalAlpha = 0.25
+        context.globalAlpha = globeOpacity * 0.25
         context.stroke()
-        context.globalAlpha = 1
+        context.globalAlpha = globeOpacity
 
         // Draw land outlines
         context.beginPath()
@@ -185,6 +196,9 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
           }
         })
       }
+
+      // Restore context state
+      context.restore()
     }
 
     const loadWorldData = async () => {
@@ -210,6 +224,8 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
 
         console.log(`[v0] Total dots generated: ${totalDots} across ${landFeatures.features.length} land features`)
 
+        // Start fade-in animation
+        isAnimatingIn = true
         render()
         setIsLoading(false)
       } catch (err) {
@@ -219,7 +235,7 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
     }
 
     // Set up rotation and interaction
-    const rotation = [0, 0]
+    const rotation: [number, number] = [0, 0]
     let autoRotate = true
     const rotationSpeed = 0.15
 
