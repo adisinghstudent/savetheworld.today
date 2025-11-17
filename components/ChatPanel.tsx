@@ -8,13 +8,29 @@ import Image from "next/image";
 const ChatContext = createContext<{
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-}>({ isOpen: false, setIsOpen: () => {} });
+  browserUrl: string | null;
+  webpageTitle: string | null;
+  setWebpageTitle: (title: string | null) => void;
+}>({
+  isOpen: false,
+  setIsOpen: () => {},
+  browserUrl: null,
+  webpageTitle: null,
+  setWebpageTitle: () => {},
+});
 
-export function ChatProvider({ children }: { children: React.ReactNode }) {
+export function ChatProvider({
+  children,
+  browserUrl
+}: {
+  children: React.ReactNode;
+  browserUrl: string | null;
+}) {
   const [isOpen, setIsOpen] = useState(false);
+  const [webpageTitle, setWebpageTitle] = useState<string | null>(null);
 
   return (
-    <ChatContext.Provider value={{ isOpen, setIsOpen }}>
+    <ChatContext.Provider value={{ isOpen, setIsOpen, browserUrl, webpageTitle, setWebpageTitle }}>
       {children}
     </ChatContext.Provider>
   );
@@ -33,7 +49,8 @@ export function ChatToggleButton() {
         <motion.button
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 20 }}
+          exit={{ opacity: 0, x: 20, transition: { duration: 0 } }}
+          transition={{ duration: 0.3 }}
           onClick={() => setIsOpen(true)}
           className="bg-gray-100 px-4 py-2 text-sm text-black transition-colors hover:bg-gray-200 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800"
           aria-label="Open chat"
@@ -45,12 +62,83 @@ export function ChatToggleButton() {
   );
 }
 
+const getFaviconUrl = (url: string) => {
+  try {
+    const domain = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+  } catch {
+    return null;
+  }
+};
+
 export default function ChatPanel() {
-  const { isOpen, setIsOpen } = useChatPanel();
+  const { isOpen, setIsOpen, browserUrl, webpageTitle, setWebpageTitle } = useChatPanel();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
 
-  const { messages, sendMessage, reload } = useChat();
+  const browserUrlRef = useRef(browserUrl);
+
+  // Keep ref updated
+  useEffect(() => {
+    console.log("[ChatPanel] browserUrlRef updated to:", browserUrl);
+    browserUrlRef.current = browserUrl;
+  }, [browserUrl]);
+
+  console.log("[ChatPanel] Rendering with browserUrl:", browserUrl);
+  console.log("[ChatPanel] browserUrlRef.current:", browserUrlRef.current);
+
+  const { messages, sendMessage, reload } = useChat({
+    api: "/api/chat",
+    fetch: async (input, init) => {
+      console.log("[Custom fetch] Called!");
+      console.log("[Custom fetch] browserUrlRef.current:", browserUrlRef.current);
+      console.log("[Custom fetch] input:", input);
+      console.log("[Custom fetch] init body:", init?.body);
+
+      // Parse the existing body and add webpageUrl
+      const existingBody = init?.body ? JSON.parse(init.body as string) : {};
+      const modifiedBody = {
+        ...existingBody,
+        webpageUrl: browserUrlRef.current || undefined,
+      };
+
+      console.log("[Custom fetch] Modified request body:", JSON.stringify(modifiedBody, null, 2));
+
+      return fetch(input, {
+        ...init,
+        body: JSON.stringify(modifiedBody),
+      });
+    },
+    onResponse: (response) => {
+      console.log("Chat response received, browserUrl:", browserUrl);
+      // Extract webpage title from response headers
+      const title = response.headers.get("X-Webpage-Title");
+      console.log("Webpage title from header:", title);
+      if (title) {
+        setWebpageTitle(title);
+      }
+    },
+  });
+
+  // Log when browserUrl changes
+  useEffect(() => {
+    console.log("browserUrl changed:", browserUrl);
+  }, [browserUrl]);
+
+  // Set a placeholder title from URL when browserUrl changes
+  useEffect(() => {
+    if (browserUrl) {
+      try {
+        const url = new URL(browserUrl);
+        // Use domain as placeholder until we get the real title from the API
+        setWebpageTitle(url.hostname.replace("www.", ""));
+      } catch {
+        setWebpageTitle("Current Page");
+      }
+    } else {
+      setWebpageTitle(null);
+    }
+  }, [browserUrl, setWebpageTitle]);
 
   const isLoading = messages.some(m => m.parts?.some(p => p.type === "text" && !p.text));
 
@@ -113,8 +201,26 @@ export default function ChatPanel() {
                               <div key={`${message.id}-${i}`}>
                                 {message.role === "user" && (
                                   <div className="mb-2 flex items-center justify-end gap-2">
-                                    <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
-                                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Exa Browser</span>
+                                    {browserUrl && webpageTitle ? (
+                                      <>
+                                        {getFaviconUrl(browserUrl) && (
+                                          <img
+                                            src={getFaviconUrl(browserUrl)!}
+                                            alt="favicon"
+                                            className="h-4 w-4"
+                                            onError={(e) => {
+                                              e.currentTarget.style.display = 'none';
+                                            }}
+                                          />
+                                        )}
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{webpageTitle}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Exa Browser</span>
+                                      </>
+                                    )}
                                   </div>
                                 )}
                                 <div
@@ -267,8 +373,26 @@ export default function ChatPanel() {
             {/* Input */}
             <div className="border-t border-gray-200 p-4 dark:border-gray-800">
               <div className="mb-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
-                <span>Exa Browser</span>
+                {browserUrl && webpageTitle ? (
+                  <>
+                    {getFaviconUrl(browserUrl) && (
+                      <img
+                        src={getFaviconUrl(browserUrl)!}
+                        alt="favicon"
+                        className="h-4 w-4"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <span>{webpageTitle}</span>
+                  </>
+                ) : (
+                  <>
+                    <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
+                    <span>Exa Browser</span>
+                  </>
+                )}
               </div>
               <form
                 onSubmit={(e) => {

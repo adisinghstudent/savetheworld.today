@@ -19,19 +19,35 @@ interface GroupedResults {
 }
 
 const LOADING_STATES = ["Tinkering", "Plotting", "Grounding", "Analyzing"];
+const SEARCH_SUGGESTIONS = [
+  "Barack Obama",
+  "Green Seaweed in Malaysia",
+  "Fifa World Cup 2026",
+  "Transformer Architecture explained"
+];
 
-function HomeContent() {
+function HomeContent({
+  browserUrl,
+  setBrowserUrl
+}: {
+  browserUrl: string | null;
+  setBrowserUrl: (url: string | null) => void;
+}) {
   const [query, setQuery] = useState("");
   const [currentTopic, setCurrentTopic] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<GroupedResults>({});
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<[number, number]>([0, 30]);
-  const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const { isOpen } = useChatPanel();
 
   // Animated loading state
   const [loadingStateIndex, setLoadingStateIndex] = useState(0);
+
+  // Typewriter effect for placeholder
+  const [placeholderText, setPlaceholderText] = useState("");
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const [isTyping, setIsTyping] = useState(true);
 
   useEffect(() => {
     if (loading) {
@@ -42,21 +58,53 @@ function HomeContent() {
     }
   }, [loading]);
 
+  // Typewriter effect
+  useEffect(() => {
+    if (currentTopic) return; // Don't run if already searched
+
+    const currentSuggestion = SEARCH_SUGGESTIONS[suggestionIndex];
+
+    if (isTyping) {
+      if (placeholderText.length < currentSuggestion.length) {
+        const timeout = setTimeout(() => {
+          setPlaceholderText(currentSuggestion.slice(0, placeholderText.length + 1));
+        }, 60);
+        return () => clearTimeout(timeout);
+      } else {
+        const timeout = setTimeout(() => {
+          setIsTyping(false);
+        }, 2000);
+        return () => clearTimeout(timeout);
+      }
+    } else {
+      if (placeholderText.length > 0) {
+        const timeout = setTimeout(() => {
+          setPlaceholderText(placeholderText.slice(0, -1));
+        }, 20);
+        return () => clearTimeout(timeout);
+      } else {
+        setSuggestionIndex((prev) => (prev + 1) % SEARCH_SUGGESTIONS.length);
+        setIsTyping(true);
+      }
+    }
+  }, [placeholderText, suggestionIndex, isTyping, currentTopic]);
+
   // Handle search
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    const searchQuery = query.trim() || placeholderText || currentTopic;
+    if (!searchQuery) return;
 
     setLoading(true);
     setError(null);
-    setCurrentTopic(query.trim());
+    setCurrentTopic(searchQuery);
 
     try {
       const res = await fetch("/api/exa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: query.trim(),
+          query: searchQuery,
           mode: "auto",
           resultTypes: ["youtube", "twitter", "news", "linkedin", "medium", "reddit", "github"],
         }),
@@ -208,7 +256,7 @@ function HomeContent() {
                 />
                 <button
                   type="submit"
-                  disabled={loading || !query.trim()}
+                  disabled={loading}
                   className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgb(18,40,190)] p-1.5 text-white transition-colors hover:bg-[rgb(14,30,150)]"
                 >
                   <svg
@@ -282,14 +330,14 @@ function HomeContent() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search for a person, company, or topic..."
+                placeholder={placeholderText}
                 className={`w-full border border-gray-300 px-4 py-3 pr-12 text-base text-black outline-none transition-colors focus:border-[rgb(18,40,190)] dark:border-gray-700 dark:bg-black dark:text-white ${
                   query ? "" : "font-serif placeholder:font-serif"
                 }`}
               />
               <button
                 type="submit"
-                disabled={loading || !query.trim()}
+                disabled={loading}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgb(18,40,190)] p-2 text-white transition-colors hover:bg-[rgb(14,30,150)]"
               >
                 <svg
@@ -638,9 +686,11 @@ function HomeContent() {
 }
 
 export default function Home() {
+  const [browserUrl, setBrowserUrl] = useState<string | null>(null);
+
   return (
-    <ChatProvider>
-      <HomeContent />
+    <ChatProvider browserUrl={browserUrl}>
+      <HomeContent browserUrl={browserUrl} setBrowserUrl={setBrowserUrl} />
     </ChatProvider>
   );
 }
