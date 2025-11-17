@@ -1,6 +1,7 @@
 import { groq } from "@ai-sdk/groq";
-import { streamText, UIMessage, convertToModelMessages } from "ai";
+import { streamText, UIMessage, convertToModelMessages, tool } from "ai";
 import Exa from "exa-js";
+import { z } from "zod";
 
 export const maxDuration = 60;
 
@@ -10,103 +11,93 @@ const exa = exaApiKey ? new Exa(exaApiKey) : null;
 export async function POST(req: Request) {
   const { messages, webpageUrl }: { messages: UIMessage[]; webpageUrl?: string } = await req.json();
 
-  console.log("Chat API called with webpageUrl:", webpageUrl);
-  console.log("Number of messages:", messages.length);
+  console.log("[groq] Chat API called with webpageUrl:", webpageUrl);
+  console.log("[groq] Number of messages:", messages.length);
 
-  let webpageTitle: string | null = null;
-  let modifiedMessages = messages;
+  // Define the tool for crawling the current webpage
+  const tools = webpageUrl && exa ? {
+    crawl_current_page: tool({
+      description: `Crawl and retrieve the full content of the currently open webpage (${webpageUrl}). Use this when the user asks about the current page, wants a summary, or needs specific information from it.`,
+      parameters: z.object({}),
+      execute: async () => {
+        console.log("[exa-tool] Crawling webpage:", webpageUrl);
+        try {
+          const crawlStartTime = Date.now();
+          const crawlResult = await exa!.getContents([webpageUrl], { text: true });
+          const crawlDuration = Date.now() - crawlStartTime;
 
-  // If a webpage URL is provided, crawl it and prepend to the last user message
-  if (webpageUrl && exa) {
-    console.log("[exa-crawl] Starting crawl for URL:", webpageUrl);
-    try {
-      const crawlStartTime = Date.now();
-      const crawlResult = await exa.getContents([webpageUrl], { text: true });
-      const crawlDuration = Date.now() - crawlStartTime;
+          console.log(`[exa-tool] Crawl completed in ${crawlDuration}ms`);
 
-      console.log(`[exa-crawl] Crawl completed in ${crawlDuration}ms`);
-      console.log("[exa-crawl] Results count:", crawlResult.results?.length || 0);
+          if (crawlResult.results && crawlResult.results.length > 0) {
+            const pageContent = crawlResult.results[0];
+            console.log("[exa-tool] Title:", pageContent.title);
+            console.log("[exa-tool] Content length:", pageContent.text?.length || 0, "characters");
 
-      if (crawlResult.results && crawlResult.results.length > 0) {
-        const pageContent = crawlResult.results[0];
-        webpageTitle = pageContent.title || null;
-        console.log("[exa-crawl] Extracted title:", webpageTitle);
-        console.log("[exa-crawl] Content length:", pageContent.text?.length || 0, "characters");
-        console.log("[exa-crawl] Content preview (first 200 chars):", pageContent.text?.substring(0, 200));
+            return {
+              title: pageContent.title,
+              url: webpageUrl,
+              content: pageContent.text,
+              author: pageContent.author,
+              publishedDate: pageContent.publishedDate,
+            };
+          }
 
-        // Prepend webpage content to the last message (which should be the user's message)
-        if (modifiedMessages.length > 0) {
-          const lastMessage = modifiedMessages[modifiedMessages.length - 1];
-          const webpageContext = `[Current webpage context]\nTitle: ${pageContent.title}\nURL: ${webpageUrl}\n\nContent:\n${pageContent.text}\n\n---\n\nUser question: `;
-
-          console.log("[exa-crawl] Prepending context to user message");
-          console.log("[exa-crawl] Original message:", lastMessage.parts?.find(p => p.type === "text")?.text);
-          console.log("[exa-crawl] Context being prepended length:", webpageContext.length, "characters");
-
-          modifiedMessages = [
-            ...modifiedMessages.slice(0, -1),
-            {
-              ...lastMessage,
-              parts: lastMessage.parts?.map((part, idx) => {
-                // Prepend to the first text part
-                if (idx === 0 && part.type === "text") {
-                  return {
-                    ...part,
-                    text: webpageContext + (part.text || "")
-                  };
-                }
-                return part;
-              }) || []
-            }
-          ];
-
-          console.log("[exa-crawl] Modified message length:", modifiedMessages[modifiedMessages.length - 1].parts?.find(p => p.type === "text")?.text?.length);
-        } else {
-          console.log("[exa-crawl] WARNING: No messages to prepend context to");
+          return { error: "No content found for this URL" };
+        } catch (error) {
+          console.error("[exa-tool] ERROR:", error);
+          return { error: String(error) };
         }
-      } else {
-        console.log("[exa-crawl] WARNING: No results returned from crawl");
-      }
-    } catch (error) {
-      console.error("[exa-crawl] ERROR:", error);
-      // Continue without webpage context if crawl fails
-    }
-  } else {
-    if (!webpageUrl) {
-      console.log("[exa-crawl] SKIPPED: No webpageUrl provided");
-    }
-    if (!exa) {
-      console.log("[exa-crawl] ERROR: Exa client not initialized (missing API key?)");
-    }
-  }
+      },
+    })
+  } : {};
 
   console.log("[groq] Converting messages for Groq");
-  console.log("[groq] Raw modifiedMessages:", JSON.stringify(modifiedMessages, null, 2));
-  const convertedMessages = convertToModelMessages(modifiedMessages);
+  const convertedMessages = convertToModelMessages(messages);
   console.log("[groq] Number of messages to send:", convertedMessages.length);
-  console.log("[groq] Converted message details:", JSON.stringify(convertedMessages.map(m => ({
-    role: m.role,
-    contentType: typeof m.content,
-    contentLength: typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length,
-    contentPreview: typeof m.content === 'string' ? m.content.substring(0, 100) : JSON.stringify(m.content).substring(0, 100)
-  })), null, 2));
+
+  const systemMessage = webpageUrl
+    ? `You are a helpful AI assistant. The user currently has a webpage open: ${webpageUrl}.
+
+When the user asks about the current page:
+1. Use the crawl_current_page tool to retrieve the page content
+2. After getting the content, analyze it and answer the user's question based on what you found
+3. Always provide a clear, helpful response using the information from the crawled page
+
+Provide clear, concise, and accurate responses.`
+    : "You are a helpful AI assistant. Provide clear, concise, and accurate responses.";
 
   const result = streamText({
     model: groq("llama-3.3-70b-versatile"),
     messages: convertedMessages,
-    system: "You are a helpful AI assistant. Provide clear, concise, and accurate responses. When webpage context is provided, use it to give more accurate and relevant answers.",
+    system: systemMessage,
+    tools,
+    maxSteps: 10, // Allow multiple tool calls if needed
   });
 
-  console.log("[groq] Streaming response initialized");
+  console.log("[groq] Streaming response initialized with tools:", Object.keys(tools));
 
-  const response = result.toUIMessageStreamResponse();
+  // When tools are available, consume the full multi-step stream
+  if (Object.keys(tools).length > 0) {
+    console.log("[groq] Waiting for multi-step completion...");
 
-  // Add webpage title to response headers if available
-  if (webpageTitle) {
-    console.log("[groq] Adding webpage title to response headers:", webpageTitle);
-    response.headers.set("X-Webpage-Title", webpageTitle);
+    try {
+      // Use result.text which waits for all steps to complete
+      const fullText = await result.text;
+
+      console.log("[groq] Full response ready (length:", fullText.length, "):", fullText.substring(0, 200));
+
+      // Return the final text
+      return new Response(fullText, {
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+      });
+    } catch (error) {
+      console.error("[groq] Error during multi-step execution:", error);
+      return new Response("Error generating response", { status: 500 });
+    }
   }
 
-  console.log("[groq] Returning response");
-  return response;
+  // For non-tool responses, stream normally
+  return result.toTextStreamResponse();
 }

@@ -75,33 +75,102 @@ export default function ChatPanel() {
   const { isOpen, setIsOpen, browserUrl, webpageTitle, setWebpageTitle } = useChatPanel();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
+  const browserUrlRef = useRef(browserUrl);
 
-  const { messages, sendMessage, reload } = useChat({
-    body: {
-      webpageUrl: browserUrl,
-    },
-    onResponse: (response) => {
-      console.log("Chat response received, browserUrl:", browserUrl);
-      // Extract webpage title from response headers
-      const title = response.headers.get("X-Webpage-Title");
-      console.log("Webpage title from header:", title);
-      if (title) {
-        setWebpageTitle(title);
-      }
-    },
-  });
-
-  // Log when browserUrl changes
+  // Keep ref updated with current browserUrl
   useEffect(() => {
-    console.log("browserUrl changed:", browserUrl);
+    browserUrlRef.current = browserUrl;
+    console.log("[ChatPanel] browserUrl updated:", browserUrl);
   }, [browserUrl]);
 
-  // Set a placeholder title from URL when browserUrl changes
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+  }>>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const reload = () => {
+    // Implement reload if needed
+  };
+
+  // Wrapper to send message with current browserUrl
+  const handleSendMessage = async (content: string) => {
+    console.log("[ChatPanel] Sending message with browserUrl:", browserUrlRef.current);
+
+    // Add user message to UI immediately
+    const userMessage = {
+      id: Date.now().toString(),
+      role: "user" as const,
+      content,
+    };
+
+    setMessages([...messages, userMessage]);
+    setIsLoading(true);
+
+    try {
+      // Convert our simple messages to UIMessage format for the API
+      const uiMessages = [...messages, userMessage].map(m => ({
+        id: m.id,
+        role: m.role,
+        parts: [{ type: "text" as const, text: m.content }],
+      }));
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: uiMessages,
+          webpageUrl: browserUrlRef.current || undefined,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to send message");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let assistantContent = "";
+      const assistantId = (Date.now() + 1).toString();
+
+      // Read the text stream
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value, { stream: true });
+        assistantContent += text;
+
+        console.log("[ChatPanel] Received chunk:", text);
+
+        // Update messages with streaming response
+        setMessages(prev => {
+          // Remove any existing assistant message and add updated one
+          const filtered = prev.filter(m => m.id !== assistantId);
+          return [...filtered, userMessage, {
+            id: assistantId,
+            role: "assistant" as const,
+            content: assistantContent,
+          }];
+        });
+      }
+
+      console.log("[ChatPanel] Stream complete. Final content:", assistantContent);
+    } catch (error) {
+      console.error("[ChatPanel] Error sending message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  // Set title from URL when browserUrl changes
   useEffect(() => {
     if (browserUrl) {
       try {
         const url = new URL(browserUrl);
-        // Use domain as placeholder until we get the real title from the API
+        // Use domain as title
         setWebpageTitle(url.hostname.replace("www.", ""));
       } catch {
         setWebpageTitle("Current Page");
@@ -111,7 +180,7 @@ export default function ChatPanel() {
     }
   }, [browserUrl, setWebpageTitle]);
 
-  const isLoading = messages.some(m => m.parts?.some(p => p.type === "text" && !p.text));
+  // isLoading is now managed in state
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -160,152 +229,66 @@ export default function ChatPanel() {
                         message.role === "user" ? "justify-end" : "justify-start"
                       }`}
                     >
-                      <div
-                        className={`max-w-[85%] space-y-2 ${
-                          message.role === "user" ? "w-full" : ""
-                        }`}
-                      >
-                        {message.parts?.map((part, i) => {
-                          // Text content
-                          if (part.type === "text" && part.text) {
-                            return (
-                              <div key={`${message.id}-${i}`}>
-                                {message.role === "user" && (
-                                  <div className="mb-2 flex items-center justify-end gap-2">
-                                    {browserUrl && webpageTitle ? (
-                                      <>
-                                        {getFaviconUrl(browserUrl) && (
-                                          <img
-                                            src={getFaviconUrl(browserUrl)!}
-                                            alt="favicon"
-                                            className="h-4 w-4"
-                                            onError={(e) => {
-                                              e.currentTarget.style.display = 'none';
-                                            }}
-                                          />
-                                        )}
-                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{webpageTitle}</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
-                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Exa Browser</span>
-                                      </>
-                                    )}
-                                  </div>
-                                )}
-                                <div
-                                  className={`px-4 py-2.5 text-sm ${
-                                    message.role === "user"
-                                      ? "bg-[rgb(18,40,190)]/10 text-gray-900 dark:bg-[rgb(18,40,190)]/20 dark:text-white"
-                                      : "text-gray-900 dark:text-white"
-                                  }`}
-                                >
-                                  <p className="whitespace-pre-wrap break-words">
-                                    {part.text}
-                                  </p>
-                                </div>
-                                {message.role === "assistant" && (
-                                  <div className="mt-2 flex gap-2">
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(part.text || "");
-                                      }}
-                                      className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-                                      aria-label="Copy response"
-                                    >
-                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                      </svg>
-                                    </button>
-                                    <button
-                                      onClick={() => reload()}
-                                      className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-                                      aria-label="Regenerate response"
-                                    >
-                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-
-                          // Tool invocation
-                          if (part.type === "tool-invocation") {
-                            return (
-                              <motion.div
-                                key={`${message.id}-${i}`}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ duration: 0.2 }}
-                                className="border border-gray-300 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900"
-                              >
-                                <div className="mb-2 flex items-center gap-2">
-                                  <motion.div
-                                    animate={{ rotate: 360 }}
-                                    transition={{
-                                      duration: 1,
-                                      repeat: part.result ? 0 : Infinity,
-                                      ease: "linear",
+                      <div className={`max-w-[85%] space-y-2 ${message.role === "user" ? "w-full" : ""}`}>
+                        {message.role === "user" && (
+                          <div className="mb-2 flex items-center justify-end gap-2">
+                            {browserUrl && webpageTitle ? (
+                              <>
+                                {getFaviconUrl(browserUrl) && (
+                                  <img
+                                    src={getFaviconUrl(browserUrl)!}
+                                    alt="favicon"
+                                    className="h-4 w-4"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
                                     }}
-                                  >
-                                    <svg
-                                      className="h-4 w-4 text-[rgb(18,40,190)] dark:text-[rgb(18,40,190)]"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                      />
-                                    </svg>
-                                  </motion.div>
-                                  <span className="font-medium text-gray-700 dark:text-gray-300">
-                                    {part.toolName === "searchWeb"
-                                      ? "Searching the web"
-                                      : "Using tool"}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-gray-600 dark:text-gray-400">
-                                  Query: {part.args?.query}
-                                </p>
-                                {part.result && (
-                                  <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    className="mt-2 space-y-1 border-t border-gray-200 pt-2 dark:border-gray-700"
-                                  >
-                                    {part.result.results?.map(
-                                      (result: any, idx: number) => (
-                                        <div
-                                          key={idx}
-                                          className="text-xs text-gray-600 dark:text-gray-400"
-                                        >
-                                          <a
-                                            href={result.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[rgb(18,40,190)] hover:underline"
-                                          >
-                                            {result.title}
-                                          </a>
-                                        </div>
-                                      )
-                                    )}
-                                  </motion.div>
+                                  />
                                 )}
-                              </motion.div>
-                            );
-                          }
-
-                          return null;
-                        })}
+                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{webpageTitle}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
+                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Exa Browser</span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        <div
+                          className={`px-4 py-2.5 text-sm ${
+                            message.role === "user"
+                              ? "bg-[rgb(18,40,190)]/10 text-gray-900 dark:bg-[rgb(18,40,190)]/20 dark:text-white"
+                              : "text-gray-900 dark:text-white"
+                          }`}
+                        >
+                          <p className="whitespace-pre-wrap break-words">
+                            {message.content}
+                          </p>
+                        </div>
+                        {message.role === "assistant" && (
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(message.content || "");
+                              }}
+                              className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                              aria-label="Copy response"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => reload()}
+                              className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                              aria-label="Regenerate response"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ))}
@@ -369,7 +352,7 @@ export default function ChatPanel() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (input.trim()) {
-                    sendMessage({ text: input });
+                    handleSendMessage(input);
                     setInput("");
                   }
                 }}

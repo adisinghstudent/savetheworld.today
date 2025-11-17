@@ -39,7 +39,7 @@ function HomeContent({
   const [results, setResults] = useState<GroupedResults>({});
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<[number, number]>([0, 30]);
-  const [useProxy, setUseProxy] = useState(false);
+  const [useProxy, setUseProxy] = useState(true);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const { isOpen } = useChatPanel();
 
@@ -61,13 +61,14 @@ function HomeContent({
     return blockedDomains.some(domain => url.includes(domain));
   };
 
-  // Auto-enable proxy for known blocked sites
+  // Auto-enable proxy for known blocked sites, keep proxy on by default
   useEffect(() => {
     if (browserUrl && isLikelyBlocked(browserUrl)) {
       setUseProxy(true);
       setIframeLoaded(false);
     } else {
-      setUseProxy(false);
+      // Keep proxy on by default, user can toggle off if needed
+      setUseProxy(true);
       setIframeLoaded(false);
     }
   }, [browserUrl]);
@@ -481,13 +482,9 @@ function HomeContent({
                 {/* Proxy Toggle Button */}
                 <button
                   onClick={() => setUseProxy(!useProxy)}
-                  className={`flex items-center justify-center p-2 text-sm transition-colors ${
-                    useProxy
-                      ? 'bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-400 dark:hover:bg-blue-800'
-                      : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
-                  }`}
+                  className="flex items-center justify-center p-2 text-sm text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
                   aria-label="Toggle proxy mode"
-                  title={useProxy ? 'Direct mode' : 'Proxy mode'}
+                  title={useProxy ? 'Switch to direct mode' : 'Switch to proxy mode'}
                 >
                   <svg
                     className="h-4 w-4"
