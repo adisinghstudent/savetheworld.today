@@ -1,17 +1,58 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, createContext, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useChat } from "@ai-sdk/react";
+import Image from "next/image";
+
+const ChatContext = createContext<{
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
+}>({ isOpen: false, setIsOpen: () => {} });
+
+export function ChatProvider({ children }: { children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <ChatContext.Provider value={{ isOpen, setIsOpen }}>
+      {children}
+    </ChatContext.Provider>
+  );
+}
+
+export function useChatPanel() {
+  return useContext(ChatContext);
+}
+
+export function ChatToggleButton() {
+  const { isOpen, setIsOpen } = useChatPanel();
+
+  return (
+    <AnimatePresence>
+      {!isOpen && (
+        <motion.button
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          onClick={() => setIsOpen(true)}
+          className="bg-gray-100 px-4 py-2 text-sm text-black transition-colors hover:bg-gray-200 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800"
+          aria-label="Open chat"
+        >
+          Ask Page
+        </motion.button>
+      )}
+    </AnimatePresence>
+  );
+}
 
 export default function ChatPanel() {
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, setIsOpen } = useChatPanel();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
 
   const { messages, sendMessage } = useChat();
 
-  const isLoading = messages.some(m => m.parts.some(p => p.type === "text" && !p.text));
+  const isLoading = messages.some(m => m.parts?.some(p => p.type === "text" && !p.text));
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -19,67 +60,24 @@ export default function ChatPanel() {
   }, [messages]);
 
   return (
-    <>
-      {/* Toggle Button - visible when panel is closed */}
-      <AnimatePresence>
-        {!isOpen && (
-          <motion.button
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            onClick={() => setIsOpen(true)}
-            className="fixed right-4 top-4 z-40 border border-gray-300 bg-white p-3 text-black shadow-lg transition-colors hover:border-blue-600 dark:border-gray-700 dark:bg-black dark:text-white dark:hover:border-blue-400"
-            aria-label="Open chat"
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {/* Chat Panel */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 z-50 flex h-screen w-full flex-col border-l border-gray-300 bg-white dark:border-gray-700 dark:bg-black sm:w-96"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-300 p-4 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-black dark:text-white">
-                Chat
-              </h2>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: 384 }}
+          exit={{ width: 0 }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          className="flex h-screen flex-col overflow-hidden border-l border-gray-300 bg-white dark:border-gray-700 dark:bg-black"
+        >
+            {/* Close Button */}
+            <div className="flex justify-end p-4">
               <button
                 onClick={() => setIsOpen(false)}
                 className="text-gray-600 transition-colors hover:text-black dark:text-gray-400 dark:hover:text-white"
-                aria-label="Close chat"
+                aria-label="Close"
               >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
@@ -112,17 +110,61 @@ export default function ChatPanel() {
                           // Text content
                           if (part.type === "text" && part.text) {
                             return (
-                              <div
-                                key={`${message.id}-${i}`}
-                                className={`border p-3 text-sm ${
-                                  message.role === "user"
-                                    ? "border-blue-600 bg-blue-50 text-black dark:border-blue-400 dark:bg-blue-950 dark:text-white"
-                                    : "border-gray-300 bg-white text-black dark:border-gray-700 dark:bg-black dark:text-white"
-                                }`}
-                              >
-                                <p className="whitespace-pre-wrap break-words">
-                                  {part.text}
-                                </p>
+                              <div key={`${message.id}-${i}`}>
+                                {message.role === "user" && (
+                                  <div className="mb-2 flex items-center justify-end gap-2">
+                                    <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
+                                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Exa Browser</span>
+                                  </div>
+                                )}
+                                <div
+                                  className={`px-4 py-2.5 text-sm ${
+                                    message.role === "user"
+                                      ? "bg-blue-100 text-gray-900 dark:bg-blue-900 dark:text-white"
+                                      : "text-gray-900 dark:text-white"
+                                  }`}
+                                >
+                                  <p className="whitespace-pre-wrap break-words">
+                                    {part.text}
+                                  </p>
+                                </div>
+                                {message.role === "assistant" && (
+                                  <div className="mt-2 flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(part.text || "");
+                                      }}
+                                      className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                      aria-label="Copy response"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        // Find the last user message and resend it
+                                        const lastUserMessage = messages
+                                          .slice()
+                                          .reverse()
+                                          .find(m => m.role === "user");
+                                        if (lastUserMessage) {
+                                          const lastUserText = lastUserMessage.parts
+                                            ?.find(p => p.type === "text")?.text;
+                                          if (lastUserText) {
+                                            sendMessage({ text: lastUserText });
+                                          }
+                                        }
+                                      }}
+                                      className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                      aria-label="Regenerate response"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             );
                           }
@@ -236,7 +278,11 @@ export default function ChatPanel() {
             </div>
 
             {/* Input */}
-            <div className="border-t border-gray-300 p-4 dark:border-gray-700">
+            <div className="border-t border-gray-200 p-4 dark:border-gray-800">
+              <div className="mb-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
+                <span>Exa Browser</span>
+              </div>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -245,28 +291,25 @@ export default function ChatPanel() {
                     setInput("");
                   }
                 }}
-                className="flex gap-2"
+                className="flex items-center gap-2"
               >
+                <button type="button" className="text-gray-500 dark:text-gray-400" aria-label="Add files">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type a message..."
+                  placeholder="Ask anything"
                   disabled={isLoading}
-                  className="flex-1 border border-gray-300 px-3 py-2 text-sm text-black outline-none transition-colors focus:border-blue-600 disabled:opacity-50 dark:border-gray-700 dark:bg-black dark:text-white dark:focus:border-blue-400"
+                  className="flex-1 border-b border-gray-300 bg-transparent py-2 text-sm text-gray-900 placeholder-gray-500 outline-none disabled:opacity-50 dark:border-gray-700 dark:text-white dark:placeholder-gray-400"
                 />
-                <button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  className="bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Send
-                </button>
               </form>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </>
   );
 }
