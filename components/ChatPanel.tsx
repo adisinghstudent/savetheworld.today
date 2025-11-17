@@ -50,7 +50,7 @@ export default function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
 
-  const { messages, sendMessage } = useChat();
+  const { messages, sendMessage, reload } = useChat();
 
   const isLoading = messages.some(m => m.parts?.some(p => p.type === "text" && !p.text));
 
@@ -120,7 +120,7 @@ export default function ChatPanel() {
                                 <div
                                   className={`px-4 py-2.5 text-sm ${
                                     message.role === "user"
-                                      ? "bg-blue-100 text-gray-900 dark:bg-blue-900 dark:text-white"
+                                      ? "bg-[rgb(18,40,190)]/10 text-gray-900 dark:bg-[rgb(18,40,190)]/20 dark:text-white"
                                       : "text-gray-900 dark:text-white"
                                   }`}
                                 >
@@ -142,20 +142,7 @@ export default function ChatPanel() {
                                       </svg>
                                     </button>
                                     <button
-                                      onClick={() => {
-                                        // Find the last user message and resend it
-                                        const lastUserMessage = messages
-                                          .slice()
-                                          .reverse()
-                                          .find(m => m.role === "user");
-                                        if (lastUserMessage) {
-                                          const lastUserText = lastUserMessage.parts
-                                            ?.find(p => p.type === "text")?.text;
-                                          if (lastUserText) {
-                                            sendMessage({ text: lastUserText });
-                                          }
-                                        }
-                                      }}
+                                      onClick={() => reload()}
                                       className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
                                       aria-label="Regenerate response"
                                     >
@@ -189,7 +176,7 @@ export default function ChatPanel() {
                                     }}
                                   >
                                     <svg
-                                      className="h-4 w-4 text-blue-600 dark:text-blue-400"
+                                      className="h-4 w-4 text-[rgb(18,40,190)] dark:text-[rgb(18,40,190)]"
                                       fill="none"
                                       stroke="currentColor"
                                       viewBox="0 0 24 24"
@@ -227,7 +214,7 @@ export default function ChatPanel() {
                                             href={result.url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-blue-600 hover:underline dark:text-blue-400"
+                                            className="text-[rgb(18,40,190)] hover:underline"
                                           >
                                             {result.title}
                                           </a>

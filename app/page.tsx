@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import ChatPanel, { ChatProvider, ChatToggleButton } from "@/components/ChatPanel";
+import ChatPanel, { ChatProvider, ChatToggleButton, useChatPanel } from "@/components/ChatPanel";
+import RotatingEarth from "@/components/ui/wireframe-dotted-globe";
 
 interface SearchResult {
   title: string;
@@ -19,7 +20,7 @@ interface GroupedResults {
 
 const LOADING_STATES = ["Tinkering", "Plotting", "Grounding", "Analyzing"];
 
-export default function Home() {
+function HomeContent() {
   const [query, setQuery] = useState("");
   const [currentTopic, setCurrentTopic] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<[number, number]>([0, 30]);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
+  const { isOpen } = useChatPanel();
 
   // Animated loading state
   const [loadingStateIndex, setLoadingStateIndex] = useState(0);
@@ -144,8 +146,7 @@ export default function Home() {
   ];
 
   return (
-    <ChatProvider>
-      <div className="flex h-screen overflow-hidden bg-white dark:bg-black">
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-black">
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto">
           <main className={`mx-auto h-full ${currentTopic ? 'max-w-full px-2 py-2' : 'max-w-7xl px-4 py-16'}`}>
@@ -183,21 +184,32 @@ export default function Home() {
                 </motion.span>
               </AnimatePresence>
             )}
-            <form onSubmit={handleSearch} className="flex-1">
+            <motion.form
+              onSubmit={handleSearch}
+              className="flex-1"
+              animate={{
+                width: isOpen ? 'calc(100% - 384px)' : '100%'
+              }}
+              transition={{
+                type: "spring",
+                damping: 25,
+                stiffness: 200
+              }}
+            >
               <div className="relative">
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={currentTopic}
-                  className={`w-full border border-gray-300 px-4 py-2 pr-12 text-sm outline-none transition-colors focus:border-blue-600 dark:border-gray-700 dark:bg-black dark:text-white ${
+                  className={`w-full border border-gray-300 px-4 py-2 pr-12 text-sm outline-none transition-colors focus:border-[rgb(18,40,190)] dark:border-gray-700 dark:bg-black dark:text-white ${
                     query ? "" : "font-serif placeholder:font-serif"
                   }`}
                 />
                 <button
                   type="submit"
                   disabled={loading || !query.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 p-1.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgb(18,40,190)] p-1.5 text-white transition-colors hover:bg-[rgb(14,30,150)]"
                 >
                   <svg
                     className="h-4 w-4"
@@ -214,7 +226,7 @@ export default function Home() {
                   </svg>
                 </button>
               </div>
-            </form>
+            </motion.form>
             <ChatToggleButton />
           </div>
         )}
@@ -228,7 +240,6 @@ export default function Home() {
                 alt="Exa logo"
                 width={32}
                 height={32}
-                className="h-8 w-auto"
               />
               <AnimatePresence mode="wait">
                 {loading ? (
@@ -247,7 +258,7 @@ export default function Home() {
                     key="static"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="font-serif text-[32px] font-normal leading-none text-black dark:text-white"
+                    className="font-serif text-[48px] font-normal leading-none text-[rgb(18,40,190)]"
                   >
                     Exa Browser
                   </motion.span>
@@ -272,14 +283,14 @@ export default function Home() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search for a person, company, or topic..."
-                className={`w-full border border-gray-300 px-4 py-3 pr-12 text-base text-black outline-none transition-colors focus:border-blue-600 dark:border-gray-700 dark:bg-black dark:text-white ${
+                className={`w-full border border-gray-300 px-4 py-3 pr-12 text-base text-black outline-none transition-colors focus:border-[rgb(18,40,190)] dark:border-gray-700 dark:bg-black dark:text-white ${
                   query ? "" : "font-serif placeholder:font-serif"
                 }`}
               />
               <button
                 type="submit"
                 disabled={loading || !query.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgb(18,40,190)] p-2 text-white transition-colors hover:bg-[rgb(14,30,150)]"
               >
                 <svg
                   className="h-5 w-5"
@@ -308,6 +319,21 @@ export default function Home() {
             )}
           </motion.form>
         )}
+
+        {/* Globe - Only show before first search */}
+        <AnimatePresence>
+          {!currentTopic && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4 }}
+              className="mx-auto max-w-3xl"
+            >
+              <RotatingEarth width={800} height={500} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Results or Browser View */}
         <AnimatePresence mode="wait">
@@ -463,7 +489,7 @@ export default function Home() {
                               />
                             </div>
                           )}
-                          <h3 className="font-serif mb-1 break-words text-sm font-normal text-blue-600 group-hover:underline dark:text-blue-400">
+                          <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(18,40,190)] group-hover:underline dark:text-[rgb(18,40,190)]">
                             {result.title}
                           </h3>
                           {result.publishedDate && (
@@ -517,7 +543,7 @@ export default function Home() {
                         onClick={() => setBrowserUrl(result.url)}
                         className="group block cursor-pointer"
                       >
-                        <h3 className="font-serif mb-1 break-words text-sm font-normal text-blue-600 group-hover:underline dark:text-blue-400">
+                        <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(18,40,190)] group-hover:underline dark:text-[rgb(18,40,190)]">
                           {result.title}
                         </h3>
                         {result.text && (
@@ -576,7 +602,7 @@ export default function Home() {
                         onClick={() => setBrowserUrl(result.url)}
                         className="group block cursor-pointer"
                       >
-                        <h3 className="font-serif mb-1 break-words text-sm font-normal text-blue-600 group-hover:underline dark:text-blue-400">
+                        <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(18,40,190)] group-hover:underline dark:text-[rgb(18,40,190)]">
                           {result.title}
                         </h3>
                         {result.text && (
@@ -608,6 +634,13 @@ export default function Home() {
         {/* Chat Panel */}
         <ChatPanel />
       </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <ChatProvider>
+      <HomeContent />
     </ChatProvider>
   );
 }

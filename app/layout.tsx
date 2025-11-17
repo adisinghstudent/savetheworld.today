@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Instrument_Serif } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const instrumentSerif = Instrument_Serif({
-  weight: ["400"],
-  subsets: ["latin"],
-  variable: "--font-instrument-serif",
+const arizonaFlare = localFont({
+  src: "../public/fonts/ABCArizonaFlare.ttf",
+  variable: "--font-arizona-flare",
+  weight: "400",
 });
 
 export const metadata: Metadata = {
@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${instrumentSerif.variable} antialiased`}>
+      <body className={`${arizonaFlare.variable} antialiased`}>
         {children}
       </body>
     </html>

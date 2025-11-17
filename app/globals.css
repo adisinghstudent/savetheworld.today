@@ -11,6 +11,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --primary-blue: rgb(18, 40, 190);
+  --primary-blue-hover: rgb(14, 30, 150);
   --font-sans: "ABCDiatype", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "ABCDiatype", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
@@ -21,7 +23,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-  --font-serif: var(--font-instrument-serif);
+  --font-serif: var(--font-arizona-flare);
 }
 
 @media (prefers-color-scheme: dark) {
