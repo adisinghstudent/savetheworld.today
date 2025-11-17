@@ -2,9 +2,31 @@
 
 An AI-powered search interface that combines intelligent web search with an interactive assistant. Built with Next.js, Exa API, and Groq/Vercel AI SDK.
 
+![Exa Browser Homepage](public/homepage.png)
+
 ## What is this?
 
-Exa Browser merges a Google-like search interface with AI capabilities to provide:
+Exa Browser merges a Google-like search interface with AI capabilities to provide an intuitive way to search, browse, and analyze web content. Start with natural language queries on the homepage, then explore results across multiple categories with an AI assistant ready to help you understand any page.
+
+### Intelligent Search Results
+
+Enter any natural language query and get instant results organized by content type. Search results are automatically categorized into Videos, Social Media, and Articles, making it easy to find exactly what you're looking for.
+
+![Search Results](public/search.png)
+
+### Browse Articles with AI Assistance
+
+Click on any article to view it in the integrated browser. The AI chat panel provides instant analysis of the page content - ask questions, get summaries, or extract specific information without waiting for the page to be processed.
+
+![Article with AI Sidebar](public/article-sidebar.png)
+
+### Video Support with Smart Analysis
+
+Watch videos directly in the browser while chatting with the AI about their content. The assistant can help explain complex topics, summarize key points, or answer questions about what you're watching.
+
+![Video with AI Sidebar](public/video-sidebar.png)
+
+## Key Features
 
 - **Intelligent Search**: Natural language search powered by Exa's AI-first search engine
 - **Categorized Results**: Automatically organized results across Videos, Social Media, and Articles

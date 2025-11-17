@@ -61,9 +61,35 @@ function HomeContent({
     return blockedDomains.some(domain => url.includes(domain));
   };
 
-  // Auto-enable proxy for known blocked sites, keep proxy on by default
+  // Check if URL is a video
+  const isVideoUrl = (url: string | null) => {
+    if (!url) return false;
+
+    // Video streaming platforms
+    const videoDomains = [
+      'youtube.com', 'youtu.be',
+      'vimeo.com',
+      'twitch.tv',
+      'dailymotion.com',
+      'streamable.com',
+      'tiktok.com'
+    ];
+
+    // Video file extensions
+    const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv', '.m4v'];
+
+    const lowerUrl = url.toLowerCase();
+    return videoDomains.some(domain => lowerUrl.includes(domain)) ||
+           videoExtensions.some(ext => lowerUrl.endsWith(ext));
+  };
+
+  // Auto-enable proxy for known blocked sites, disable for videos
   useEffect(() => {
-    if (browserUrl && isLikelyBlocked(browserUrl)) {
+    if (browserUrl && isVideoUrl(browserUrl)) {
+      // Never proxy videos
+      setUseProxy(false);
+      setIframeLoaded(false);
+    } else if (browserUrl && isLikelyBlocked(browserUrl)) {
       setUseProxy(true);
       setIframeLoaded(false);
     } else {
