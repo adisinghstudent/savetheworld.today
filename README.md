@@ -143,3 +143,4 @@ Feel free to:
 - Share your ideas and suggestions
 - Help improve documentation
 
+# exa-browser
