@@ -1,4 +1,4 @@
-import { cerebras } from "@ai-sdk/cerebras";
+import { groq } from "@ai-sdk/groq";
 import { streamText, UIMessage, convertToModelMessages } from "ai";
 import Exa from "exa-js";
 
@@ -80,11 +80,11 @@ export async function POST(req: Request) {
     }
   }
 
-  console.log("[cerebras] Converting messages for Cerebras");
-  console.log("[cerebras] Raw modifiedMessages:", JSON.stringify(modifiedMessages, null, 2));
+  console.log("[groq] Converting messages for Groq");
+  console.log("[groq] Raw modifiedMessages:", JSON.stringify(modifiedMessages, null, 2));
   const convertedMessages = convertToModelMessages(modifiedMessages);
-  console.log("[cerebras] Number of messages to send:", convertedMessages.length);
-  console.log("[cerebras] Converted message details:", JSON.stringify(convertedMessages.map(m => ({
+  console.log("[groq] Number of messages to send:", convertedMessages.length);
+  console.log("[groq] Converted message details:", JSON.stringify(convertedMessages.map(m => ({
     role: m.role,
     contentType: typeof m.content,
     contentLength: typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length,
@@ -92,21 +92,21 @@ export async function POST(req: Request) {
   })), null, 2));
 
   const result = streamText({
-    model: cerebras("llama3.1-8b"),
+    model: groq("llama-3.3-70b-versatile"),
     messages: convertedMessages,
     system: "You are a helpful AI assistant. Provide clear, concise, and accurate responses. When webpage context is provided, use it to give more accurate and relevant answers.",
   });
 
-  console.log("[cerebras] Streaming response initialized");
+  console.log("[groq] Streaming response initialized");
 
   const response = result.toUIMessageStreamResponse();
 
   // Add webpage title to response headers if available
   if (webpageTitle) {
-    console.log("[cerebras] Adding webpage title to response headers:", webpageTitle);
+    console.log("[groq] Adding webpage title to response headers:", webpageTitle);
     response.headers.set("X-Webpage-Title", webpageTitle);
   }
 
-  console.log("[cerebras] Returning response");
+  console.log("[groq] Returning response");
   return response;
 }

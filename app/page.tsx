@@ -39,10 +39,38 @@ function HomeContent({
   const [results, setResults] = useState<GroupedResults>({});
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<[number, number]>([0, 30]);
+  const [useProxy, setUseProxy] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const { isOpen } = useChatPanel();
 
   // Animated loading state
   const [loadingStateIndex, setLoadingStateIndex] = useState(0);
+
+  // Known domains that block iframe embedding
+  const isLikelyBlocked = (url: string | null) => {
+    if (!url) return false;
+    const blockedDomains = [
+      'bbc.com', 'bbc.co.uk',
+      'cnn.com', 'nytimes.com',
+      'twitter.com', 'x.com',
+      'facebook.com', 'instagram.com',
+      'linkedin.com',
+      'reddit.com',
+      'github.com'
+    ];
+    return blockedDomains.some(domain => url.includes(domain));
+  };
+
+  // Auto-enable proxy for known blocked sites
+  useEffect(() => {
+    if (browserUrl && isLikelyBlocked(browserUrl)) {
+      setUseProxy(true);
+      setIframeLoaded(false);
+    } else {
+      setUseProxy(false);
+      setIframeLoaded(false);
+    }
+  }, [browserUrl]);
 
   // Typewriter effect for placeholder
   const [placeholderText, setPlaceholderText] = useState("");
@@ -439,11 +467,42 @@ function HomeContent({
                 </button>
 
                 {/* URL Display */}
-                <div className="flex-1 bg-white px-3 py-1.5 dark:bg-black">
-                  <p className="truncate text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex flex-1 items-center gap-2 bg-white px-3 py-1.5 dark:bg-black">
+                  <p className="flex-1 truncate text-sm text-gray-600 dark:text-gray-400">
                     {browserUrl}
                   </p>
+                  {useProxy && (
+                    <span className="text-xs text-gray-500 dark:text-gray-500">
+                      (Proxied)
+                    </span>
+                  )}
                 </div>
+
+                {/* Proxy Toggle Button */}
+                <button
+                  onClick={() => setUseProxy(!useProxy)}
+                  className={`flex items-center justify-center p-2 text-sm transition-colors ${
+                    useProxy
+                      ? 'bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-400 dark:hover:bg-blue-800'
+                      : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800'
+                  }`}
+                  aria-label="Toggle proxy mode"
+                  title={useProxy ? 'Direct mode' : 'Proxy mode'}
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
 
                 {/* Open in Browser Button */}
                 <a
@@ -471,12 +530,23 @@ function HomeContent({
 
               {/* Browser Frame */}
               <div className="flex-1 overflow-hidden">
-                <iframe
-                  src={getEmbedUrl(browserUrl)}
-                  className="h-full w-full"
-                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                  title="Browser"
-                />
+                {useProxy ? (
+                  <iframe
+                    key={`proxy-${browserUrl}`}
+                    src={`/api/proxy?url=${encodeURIComponent(browserUrl)}`}
+                    className="h-full w-full"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                    title="Browser (Proxied)"
+                  />
+                ) : (
+                  <iframe
+                    key={`direct-${browserUrl}`}
+                    src={getEmbedUrl(browserUrl)}
+                    className="h-full w-full"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                    title="Browser"
+                  />
+                )}
               </div>
             </motion.div>
           ) : !loading && Object.keys(results).length > 0 ? (

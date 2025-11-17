@@ -76,38 +76,9 @@ export default function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
 
-  const browserUrlRef = useRef(browserUrl);
-
-  // Keep ref updated
-  useEffect(() => {
-    console.log("[ChatPanel] browserUrlRef updated to:", browserUrl);
-    browserUrlRef.current = browserUrl;
-  }, [browserUrl]);
-
-  console.log("[ChatPanel] Rendering with browserUrl:", browserUrl);
-  console.log("[ChatPanel] browserUrlRef.current:", browserUrlRef.current);
-
   const { messages, sendMessage, reload } = useChat({
-    api: "/api/chat",
-    fetch: async (input, init) => {
-      console.log("[Custom fetch] Called!");
-      console.log("[Custom fetch] browserUrlRef.current:", browserUrlRef.current);
-      console.log("[Custom fetch] input:", input);
-      console.log("[Custom fetch] init body:", init?.body);
-
-      // Parse the existing body and add webpageUrl
-      const existingBody = init?.body ? JSON.parse(init.body as string) : {};
-      const modifiedBody = {
-        ...existingBody,
-        webpageUrl: browserUrlRef.current || undefined,
-      };
-
-      console.log("[Custom fetch] Modified request body:", JSON.stringify(modifiedBody, null, 2));
-
-      return fetch(input, {
-        ...init,
-        body: JSON.stringify(modifiedBody),
-      });
+    body: {
+      webpageUrl: browserUrl,
     },
     onResponse: (response) => {
       console.log("Chat response received, browserUrl:", browserUrl);
