@@ -22,6 +22,21 @@ interface SpeciesLocations {
   occurrences: { lat: number; lng: number; year?: number | null; country?: string | null }[];
 }
 
+const IUCN_CATEGORY_COLORS: Record<string, string> = {
+  EX: "#000000", EW: "#000000",
+  CR: "#cc3333", EN: "#d4500c",
+  VU: "#cc9900", NT: "#228b22",
+  LC: "#006666", DD: "#999999",
+  NE: "#bbbbbb",
+};
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 const GlobeContext = createContext<{
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
@@ -33,6 +48,8 @@ const GlobeContext = createContext<{
   setHasSpeciesData: (has: boolean) => void;
   speciesLocations: SpeciesLocations | null;
   setSpeciesLocations: (loc: SpeciesLocations | null) => void;
+  redListCategory: string | null;
+  setRedListCategory: (category: string | null) => void;
 }>({
   isOpen: false,
   setIsOpen: () => {},
@@ -44,6 +61,8 @@ const GlobeContext = createContext<{
   setHasSpeciesData: () => {},
   speciesLocations: null,
   setSpeciesLocations: () => {},
+  redListCategory: null,
+  setRedListCategory: () => {},
 });
 
 export function GlobeProvider({ children }: { children: React.ReactNode }) {
@@ -55,6 +74,7 @@ export function GlobeProvider({ children }: { children: React.ReactNode }) {
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [hasSpeciesData, setHasSpeciesData] = useState(false);
   const [speciesLocations, setSpeciesLocations] = useState<SpeciesLocations | null>(null);
+  const [redListCategory, setRedListCategory] = useState<string | null>(null);
 
   return (
     <GlobeContext.Provider
@@ -69,6 +89,8 @@ export function GlobeProvider({ children }: { children: React.ReactNode }) {
         setHasSpeciesData,
         speciesLocations,
         setSpeciesLocations,
+        redListCategory,
+        setRedListCategory,
       }}
     >
       {children}
@@ -261,13 +283,14 @@ function removeSpeciesLayers(map: mapboxgl.Map) {
 }
 
 export default function MapGlobePanel() {
-  const { isOpen, setIsOpen, userLocation, speciesLocations } = useGlobePanel();
+  const { isOpen, setIsOpen, userLocation, speciesLocations, redListCategory } = useGlobePanel();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const rotationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null
   );
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !mapContainerRef.current || mapRef.current) return;
@@ -301,6 +324,7 @@ export default function MapGlobePanel() {
         "star-intensity": 0,
         "horizon-blend": 0.02,
       });
+      setMapReady(true);
     });
 
     // Slow auto-rotate
@@ -332,6 +356,7 @@ export default function MapGlobePanel() {
       markersRef.current = [];
       map.remove();
       mapRef.current = null;
+      setMapReady(false);
     };
   }, [isOpen]);
 
@@ -425,142 +450,141 @@ export default function MapGlobePanel() {
     }
   }, [userLocation]);
 
-  // Species data layers
+  // Species data layers — fires when map is ready AND species data changes
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
 
-    const drawSpecies = () => {
-      removeSpeciesLayers(map);
+    removeSpeciesLayers(map);
 
-      if (!speciesLocations) return;
+    if (!speciesLocations) return;
 
-      const { countryCodes, occurrences } = speciesLocations;
+    const categoryColor = redListCategory
+      ? IUCN_CATEGORY_COLORS[redListCategory] || "rgb(234, 179, 8)"
+      : "rgb(234, 179, 8)";
+    const fillColor = redListCategory && IUCN_CATEGORY_COLORS[redListCategory]
+      ? hexToRgba(IUCN_CATEGORY_COLORS[redListCategory], 0.3)
+      : "rgba(234, 179, 8, 0.25)";
 
-      // Country highlights via Mapbox country boundaries
-      if (countryCodes.length > 0) {
-        if (!map.getSource("species-countries")) {
-          map.addSource("species-countries", {
-            type: "vector",
-            url: "mapbox://mapbox.country-boundaries-v1",
-          });
-        }
+    const { countryCodes, occurrences } = speciesLocations;
 
-        map.addLayer({
-          id: "species-countries-fill",
-          type: "fill",
-          source: "species-countries",
-          "source-layer": "country_boundaries",
-          filter: ["in", ["get", "iso_3166_1"], ["literal", countryCodes]],
-          paint: {
-            "fill-color": "rgba(234, 179, 8, 0.25)",
-          },
-        });
-
-        map.addLayer({
-          id: "species-countries-line",
-          type: "line",
-          source: "species-countries",
-          "source-layer": "country_boundaries",
-          filter: ["in", ["get", "iso_3166_1"], ["literal", countryCodes]],
-          paint: {
-            "line-color": "rgb(234, 179, 8)",
-            "line-width": 1,
-          },
+    // Country highlights via Mapbox country boundaries
+    if (countryCodes.length > 0) {
+      if (!map.getSource("species-countries")) {
+        map.addSource("species-countries", {
+          type: "vector",
+          url: "mapbox://mapbox.country-boundaries-v1",
         });
       }
 
-      // GBIF occurrence points (clustered)
-      if (occurrences.length > 0) {
-        const geojson: GeoJSON.FeatureCollection = {
-          type: "FeatureCollection",
-          features: occurrences.map((o) => ({
-            type: "Feature" as const,
-            geometry: { type: "Point" as const, coordinates: [o.lng, o.lat] },
-            properties: { year: o.year, country: o.country },
-          })),
-        };
+      map.addLayer({
+        id: "species-countries-fill",
+        type: "fill",
+        source: "species-countries",
+        "source-layer": "country_boundaries",
+        filter: ["in", ["get", "iso_3166_1"], ["literal", countryCodes]],
+        paint: {
+          "fill-color": fillColor,
+        },
+      });
 
-        map.addSource("species-occurrences", {
-          type: "geojson",
-          data: geojson,
-          cluster: true,
-          clusterRadius: 50,
-          clusterMaxZoom: 14,
-        });
-
-        // Cluster circles
-        map.addLayer({
-          id: "species-clusters",
-          type: "circle",
-          source: "species-occurrences",
-          filter: ["has", "point_count"],
-          paint: {
-            "circle-color": "rgb(234, 179, 8)",
-            "circle-radius": [
-              "step",
-              ["get", "point_count"],
-              12, 10,
-              16, 50,
-              22, 100,
-              28,
-            ],
-            "circle-opacity": 0.7,
-          },
-        });
-
-        // Cluster count labels
-        map.addLayer({
-          id: "species-cluster-count",
-          type: "symbol",
-          source: "species-occurrences",
-          filter: ["has", "point_count"],
-          layout: {
-            "text-field": "{point_count_abbreviated}",
-            "text-size": 11,
-          },
-          paint: {
-            "text-color": "#fff",
-          },
-        });
-
-        // Individual points
-        map.addLayer({
-          id: "species-points",
-          type: "circle",
-          source: "species-occurrences",
-          filter: ["!", ["has", "point_count"]],
-          paint: {
-            "circle-color": "rgb(234, 179, 8)",
-            "circle-radius": 4,
-            "circle-opacity": 0.8,
-            "circle-stroke-width": 1,
-            "circle-stroke-color": "#fff",
-          },
-        });
-
-        // Fit bounds to occurrences
-        const bounds = new mapboxgl.LngLatBounds();
-        for (const o of occurrences) {
-          bounds.extend([o.lng, o.lat]);
-        }
-        if (!bounds.isEmpty()) {
-          // Stop auto-rotation
-          if (rotationIntervalRef.current) {
-            clearInterval(rotationIntervalRef.current);
-            rotationIntervalRef.current = null;
-          }
-          map.fitBounds(bounds, { padding: 60, maxZoom: 5 });
-        }
-      }
-    };
-
-    if (map.isStyleLoaded()) {
-      drawSpecies();
-    } else {
-      map.once("style.load", drawSpecies);
+      map.addLayer({
+        id: "species-countries-line",
+        type: "line",
+        source: "species-countries",
+        "source-layer": "country_boundaries",
+        filter: ["in", ["get", "iso_3166_1"], ["literal", countryCodes]],
+        paint: {
+          "line-color": categoryColor,
+          "line-width": 1,
+        },
+      });
     }
-  }, [speciesLocations]);
+
+    // GBIF occurrence points (clustered)
+    if (occurrences.length > 0) {
+      const geojson: GeoJSON.FeatureCollection = {
+        type: "FeatureCollection",
+        features: occurrences.map((o) => ({
+          type: "Feature" as const,
+          geometry: { type: "Point" as const, coordinates: [o.lng, o.lat] },
+          properties: { year: o.year, country: o.country },
+        })),
+      };
+
+      map.addSource("species-occurrences", {
+        type: "geojson",
+        data: geojson,
+        cluster: true,
+        clusterRadius: 50,
+        clusterMaxZoom: 14,
+      });
+
+      // Cluster circles
+      map.addLayer({
+        id: "species-clusters",
+        type: "circle",
+        source: "species-occurrences",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": categoryColor,
+          "circle-radius": [
+            "step",
+            ["get", "point_count"],
+            12, 10,
+            16, 50,
+            22, 100,
+            28,
+          ],
+          "circle-opacity": 0.7,
+        },
+      });
+
+      // Cluster count labels
+      map.addLayer({
+        id: "species-cluster-count",
+        type: "symbol",
+        source: "species-occurrences",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": "{point_count_abbreviated}",
+          "text-size": 11,
+        },
+        paint: {
+          "text-color": "#fff",
+        },
+      });
+
+      // Individual points
+      map.addLayer({
+        id: "species-points",
+        type: "circle",
+        source: "species-occurrences",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": categoryColor,
+          "circle-radius": 4,
+          "circle-opacity": 0.8,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#fff",
+        },
+      });
+
+      // Fit bounds to occurrences
+      const bounds = new mapboxgl.LngLatBounds();
+      for (const o of occurrences) {
+        bounds.extend([o.lng, o.lat]);
+      }
+      if (!bounds.isEmpty()) {
+        // Stop auto-rotation
+        if (rotationIntervalRef.current) {
+          clearInterval(rotationIntervalRef.current);
+          rotationIntervalRef.current = null;
+        }
+        map.fitBounds(bounds, { padding: 60, maxZoom: 5 });
+      }
+    }
+  }, [speciesLocations, mapReady, redListCategory]);
 
   return (
     <AnimatePresence>

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "skills": {
+    "mapbox-data-visualization-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "computedHash": "37c6e711eee485837309bd7f3630c3d6dcfb63b94a924ddd13cc252281f56467"
+    },
+    "mapbox-geospatial-operations": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "computedHash": "8d64a99cda97056350dabf272909723dc422c3817dee2db142f60a67f6efb37b"
+    },
+    "mapbox-web-integration-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "computedHash": "e0494db88315b601691fa8bfed5ac626fadd1114473d8fa7e077ab6a1d6e0133"
+    },
+    "mapbox-web-performance-patterns": {
+      "source": "mapbox/mapbox-agent-skills",
+      "sourceType": "github",
+      "computedHash": "fbc865fcc67d97a68fcdc5d2a532222f38470b742a2d9cd67c8c53fa26e62208"
+    }
+  }
+}

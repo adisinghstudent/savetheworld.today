@@ -19,11 +19,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Step 1: Search by scientific name
+    // Step 1: Search by scientific name using query params (v4 format)
     const parts = name.split(" ");
-    const searchName = parts.slice(0, 2).join(" ");
+    const genusName = parts[0];
+    const speciesName = parts[1] || "";
 
-    const taxaUrl = `${IUCN_BASE}/taxa/scientific_name/${encodeURIComponent(searchName)}`;
+    const taxaUrl = `${IUCN_BASE}/taxa/scientific_name?genus_name=${encodeURIComponent(genusName)}&species_name=${encodeURIComponent(speciesName)}`;
     const taxaRes = await fetch(taxaUrl, {
       headers: { Authorization: `Bearer ${IUCN_API_KEY}` },
     });
@@ -34,32 +35,79 @@ export async function GET(request: NextRequest) {
     }
 
     const taxaData = await taxaRes.json();
-    const taxa = taxaData.taxa;
+    const taxon = taxaData.taxon;
 
-    if (!taxa || taxa.length === 0) {
+    if (!taxon || !taxon.sis_id) {
       return NextResponse.json({ found: false });
     }
 
-    // Pick the taxon — prefer species-level match
-    const taxon = taxa[0];
-    const assessments = taxon.assessments;
+    // Get common name from taxon
+    const commonNames = taxon.common_names || [];
+    const engMain = commonNames.find(
+      (c: { main?: boolean; language?: string }) => c.main && c.language === "eng"
+    );
+    const engAny = commonNames.find(
+      (c: { language?: string }) => c.language === "eng"
+    );
+    const commonName = engMain?.name || engAny?.name || null;
+
+    // Step 2: Fetch assessments via taxa/sis/{sis_id}
+    const sisUrl = `${IUCN_BASE}/taxa/sis/${taxon.sis_id}`;
+    const sisRes = await fetch(sisUrl, {
+      headers: { Authorization: `Bearer ${IUCN_API_KEY}` },
+    });
+
+    if (!sisRes.ok) {
+      console.error("[species] SIS fetch failed:", sisRes.status);
+      return NextResponse.json({ found: false });
+    }
+
+    const sisData = await sisRes.json();
+    const assessments = sisData.assessments;
 
     if (!assessments || assessments.length === 0) {
       return NextResponse.json({ found: false });
     }
 
-    // Pick best assessment: prefer latest year + global scope
-    const sorted = [...assessments].sort((a: { year?: number; scopes?: Array<{ description?: string }> }, b: { year?: number; scopes?: Array<{ description?: string }> }) => {
-      const aGlobal = a.scopes?.some((s: { description?: string }) => s.description === "Global") ? 1 : 0;
-      const bGlobal = b.scopes?.some((s: { description?: string }) => s.description === "Global") ? 1 : 0;
-      if (aGlobal !== bGlobal) return bGlobal - aGlobal;
-      return (b.year || 0) - (a.year || 0);
-    });
+    // Pick best assessment: prefer latest=true + Global scope
+    const sorted = [...assessments].sort(
+      (
+        a: {
+          latest?: boolean;
+          year_published?: string;
+          scopes?: Array<{ code?: string; description?: { en?: string } }>;
+        },
+        b: {
+          latest?: boolean;
+          year_published?: string;
+          scopes?: Array<{ code?: string; description?: { en?: string } }>;
+        }
+      ) => {
+        const aGlobal = a.scopes?.some(
+          (s) => s.description?.en === "Global" || s.code === "1"
+        )
+          ? 1
+          : 0;
+        const bGlobal = b.scopes?.some(
+          (s) => s.description?.en === "Global" || s.code === "1"
+        )
+          ? 1
+          : 0;
+        if (aGlobal !== bGlobal) return bGlobal - aGlobal;
+        const aLatest = a.latest ? 1 : 0;
+        const bLatest = b.latest ? 1 : 0;
+        if (aLatest !== bLatest) return bLatest - aLatest;
+        return (
+          parseInt(b.year_published || "0") -
+          parseInt(a.year_published || "0")
+        );
+      }
+    );
 
     const bestAssessment = sorted[0];
     const assessmentId = bestAssessment.assessment_id;
 
-    // Step 2: Fetch full assessment
+    // Step 3: Fetch full assessment details
     const assessUrl = `${IUCN_BASE}/assessment/${assessmentId}`;
     const assessRes = await fetch(assessUrl, {
       headers: { Authorization: `Bearer ${IUCN_API_KEY}` },
@@ -70,56 +118,58 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ found: false });
     }
 
-    const assessData = await assessRes.json();
+    const assess = await assessRes.json();
 
-    // Extract red list category
-    const redListCategory = assessData.red_list_category?.code || "NE";
-    const redListCategoryName = assessData.red_list_category?.description || "Not Evaluated";
+    // Red list category
+    const redListCategory = assess.red_list_category?.code || "NE";
+    const redListCategoryName =
+      assess.red_list_category?.description?.en || "Not Evaluated";
 
-    // Extract population trend
-    const populationTrend = assessData.population_trend?.code || "Unknown";
-    const populationTrendName = assessData.population_trend?.description || "Unknown";
+    // Population trend
+    const populationTrend = assess.population_trend?.code || "Unknown";
+    const populationTrendName =
+      assess.population_trend?.description?.en || "Unknown";
 
-    // Extract population size from documentation
+    // Population size from documentation
     let populationSize: string | null = null;
-    if (assessData.documentation?.population) {
-      populationSize = stripHtml(assessData.documentation.population);
+    if (assess.documentation?.population) {
+      populationSize = stripHtml(assess.documentation.population);
     }
 
-    // Extract threats
+    // Threats (from description.en)
     const threats: string[] = [];
-    if (assessData.threats && Array.isArray(assessData.threats)) {
-      for (const threat of assessData.threats.slice(0, 3)) {
-        if (threat.title) {
-          threats.push(stripHtml(threat.title));
-        }
+    if (assess.threats && Array.isArray(assess.threats)) {
+      for (const threat of assess.threats.slice(0, 5)) {
+        const desc = threat.description?.en;
+        if (desc) threats.push(desc);
       }
     }
 
-    // Extract native countries (origin=Native, presence=Extant)
+    // Native countries from locations array (v4 uses `locations`, not `geographical_range`)
     const nativeCountries: string[] = [];
-    if (assessData.geographical_range?.countries) {
-      for (const c of assessData.geographical_range.countries) {
-        const isNative = c.origin === 1 || c.origin_description === "Native";
-        const isExtant = c.presence === 1 || c.presence_description === "Extant";
-        if (isNative && isExtant && c.country?.iso2) {
-          nativeCountries.push(c.country.iso2);
+    if (assess.locations && Array.isArray(assess.locations)) {
+      for (const loc of assess.locations) {
+        const isNative = loc.origin === "Native";
+        const isExtant =
+          loc.presence === "Extant" || loc.presence === "Possibly Extant";
+        if (isNative && isExtant && loc.code) {
+          nativeCountries.push(loc.code);
         }
       }
     }
 
-    // Build IUCN page URL
-    const taxonId = taxon.taxon_id || taxon.sis_taxon_id;
-    const iucnUrl = taxonId
-      ? `https://www.iucnredlist.org/species/${taxonId}/${assessmentId}`
-      : `https://www.iucnredlist.org/search?query=${encodeURIComponent(searchName)}`;
+    // IUCN page URL (provided directly in assessment list)
+    const iucnUrl =
+      bestAssessment.url ||
+      assess.url ||
+      `https://www.iucnredlist.org/species/${taxon.sis_id}/${assessmentId}`;
 
     return NextResponse.json({
       found: true,
       taxon: {
-        scientificName: taxon.scientific_name || searchName,
-        commonName: taxon.common_names?.[0]?.name || null,
-        kingdom: taxon.kingdom || null,
+        scientificName: taxon.scientific_name || name,
+        commonName,
+        kingdom: taxon.kingdom_name || null,
       },
       assessment: {
         redListCategory,
@@ -130,7 +180,7 @@ export async function GET(request: NextRequest) {
         nativeCountries,
         threats,
         iucnUrl,
-        year: bestAssessment.year || null,
+        year: bestAssessment.year_published || null,
       },
     });
   } catch (err) {

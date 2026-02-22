@@ -1,41 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BLOCKLIST = [
-  "film",
-  "album",
-  "song",
-  "band",
-  "city",
-  "given name",
-  "surname",
-  "family name",
-  "fictional character",
-  "television series",
-  "video game",
-  "book",
-  "novel",
-  "magazine",
-  "newspaper",
-  "programming language",
-  "software",
-  "company",
-  "sports team",
-  "military unit",
-  "automobile",
-  "ship",
-  "aircraft",
-  "rocket",
-  "satellite",
-  "disambiguation page",
-  "Wikimedia",
-];
-
-interface WikiCandidate {
-  id: string;
-  label: string;
-  description: string;
-  scientificName: string | null;
-}
+const CEREBRAS_API_KEY = process.env.CEREBRAS_API_KEY;
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim();
@@ -43,66 +8,54 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ candidates: [] });
   }
 
+  if (!CEREBRAS_API_KEY) {
+    console.error("[species-search] CEREBRAS_API_KEY not set");
+    return NextResponse.json({ candidates: [] });
+  }
+
   try {
-    // Step 1: Search Wikidata for entities matching the query
-    const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(q)}&language=en&limit=10&format=json`;
-    const searchRes = await fetch(searchUrl);
-    const searchData = await searchRes.json();
+    const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${CEREBRAS_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "llama3.1-8b",
+        messages: [
+          {
+            role: "system",
+            content: `You identify biological species from user search queries. Given a search query, determine if it refers to a real biological species (animal, plant, fungus, etc). If yes, return the scientific name (genus + species in Latin binomial) and the common English name. If the query is NOT about a species (e.g. "javascript", "climate policy", "news"), return an empty array. Respond ONLY with JSON, no explanation.`,
+          },
+          {
+            role: "user",
+            content: `Search query: "${q}"
 
-    if (!searchData.search || searchData.search.length === 0) {
+Return JSON: { "candidates": [{ "commonName": "...", "scientificName": "Genus species" }] } or { "candidates": [] } if not a species.`,
+          },
+        ],
+        temperature: 0,
+        max_tokens: 200,
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!res.ok) {
+      console.error("[species-search] Cerebras error:", res.status);
       return NextResponse.json({ candidates: [] });
     }
 
-    // Step 2: Filter out non-species by description blocklist
-    const filtered = searchData.search.filter(
-      (item: { description?: string }) => {
-        const desc = (item.description || "").toLowerCase();
-        return !BLOCKLIST.some((term) => desc.includes(term.toLowerCase()));
-      }
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return NextResponse.json({ candidates: [] });
+
+    const parsed = JSON.parse(content);
+    const candidates = (parsed.candidates || []).slice(0, 3).map(
+      (c: { commonName?: string; scientificName?: string }) => ({
+        label: c.commonName || "",
+        scientificName: c.scientificName || "",
+      })
     );
-
-    if (filtered.length === 0) {
-      return NextResponse.json({ candidates: [] });
-    }
-
-    // Step 3: Fetch entities to check for P225 (taxon name)
-    const ids = filtered
-      .slice(0, 8)
-      .map((item: { id: string }) => item.id)
-      .join("|");
-    const entitiesUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${ids}&props=claims|labels|descriptions&languages=en&format=json`;
-    const entitiesRes = await fetch(entitiesUrl);
-    const entitiesData = await entitiesRes.json();
-
-    const candidates: WikiCandidate[] = [];
-
-    for (const entity of Object.values(entitiesData.entities || {})) {
-      const e = entity as {
-        id: string;
-        labels?: { en?: { value: string } };
-        descriptions?: { en?: { value: string } };
-        claims?: {
-          P225?: Array<{
-            mainsnak?: { datavalue?: { value: string } };
-          }>;
-        };
-      };
-      const taxonClaim = e.claims?.P225;
-      if (!taxonClaim || taxonClaim.length === 0) continue;
-
-      const scientificName =
-        taxonClaim[0]?.mainsnak?.datavalue?.value || null;
-      if (!scientificName) continue;
-
-      candidates.push({
-        id: e.id,
-        label: e.labels?.en?.value || "",
-        description: e.descriptions?.en?.value || "",
-        scientificName,
-      });
-
-      if (candidates.length >= 5) break;
-    }
 
     return NextResponse.json({ candidates });
   } catch (err) {

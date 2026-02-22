@@ -246,7 +246,7 @@ function HomeContent({
   const [useProxy, setUseProxy] = useState(true);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const { isOpen } = useChatPanel();
-  const { setHasSpeciesData, setSpeciesLocations } = useGlobePanel();
+  const { setHasSpeciesData, setSpeciesLocations, setIsOpen, setRedListCategory } = useGlobePanel();
 
   // Wrap setters to persist to sessionStorage
   const setCurrentTopic = (topic: string) => {
@@ -376,6 +376,7 @@ function HomeContent({
     setSpeciesLoading(true);
     setHasSpeciesData(false);
     setSpeciesLocations(null);
+    setRedListCategory(null);
 
     // Run Exa search and species name resolution in parallel
     const [exaResult, speciesSearchResult] = await Promise.allSettled([
@@ -411,6 +412,7 @@ function HomeContent({
     ) {
       const candidate = speciesSearchResult.value.candidates[0];
       const scientificName = candidate.scientificName;
+      console.log("[species] Detected:", candidate.label, "->", scientificName);
 
       // Fetch IUCN data and GBIF occurrences in parallel
       const [iucnResult, gbifResult] = await Promise.allSettled([
@@ -418,10 +420,13 @@ function HomeContent({
         fetch(`/api/species-occurrences?name=${encodeURIComponent(scientificName)}&limit=300`).then((res) => res.json()),
       ]);
 
+      console.log("[species] IUCN result:", iucnResult.status === "fulfilled" ? (iucnResult.value.found ? "found" : "not found") : "failed");
+      console.log("[species] GBIF result:", gbifResult.status === "fulfilled" ? `${gbifResult.value.occurrences?.length || 0} occurrences` : "failed");
+
       // Process IUCN data
       if (iucnResult.status === "fulfilled" && iucnResult.value.found) {
         const { taxon, assessment } = iucnResult.value;
-        setSpeciesInfo({
+        const info: SpeciesInfo = {
           commonName: candidate.label || taxon.commonName,
           scientificName: taxon.scientificName,
           redListCategory: assessment.redListCategory,
@@ -433,7 +438,10 @@ function HomeContent({
           threats: assessment.threats || [],
           iucnUrl: assessment.iucnUrl,
           year: assessment.year,
-        });
+        };
+        console.log("[species] Setting speciesInfo:", info.redListCategoryName, info.commonName);
+        setSpeciesInfo(info);
+        setRedListCategory(assessment.redListCategory);
 
         // Set globe data
         const countryCodes = assessment.nativeCountries || [];
@@ -442,11 +450,15 @@ function HomeContent({
             ? gbifResult.value.occurrences || []
             : [];
 
+        console.log("[species] Globe data:", countryCodes.length, "countries,", occurrences.length, "occurrences");
         if (countryCodes.length > 0 || occurrences.length > 0) {
           setSpeciesLocations({ countryCodes, occurrences });
           setHasSpeciesData(true);
+          setIsOpen(true);
         }
       }
+    } else {
+      console.log("[species] No species candidates found for query");
     }
 
     setSpeciesLoading(false);
@@ -485,6 +497,27 @@ function HomeContent({
     }
     // Add other platform conversions here if needed
     return url;
+  };
+
+  const cleanPreviewText = (text: string) => {
+    return text
+      .replace(/\[!\[.*?\]\(.*?\)\]/g, "")   // [![img](url)]
+      .replace(/!\[.*?\]\(.*?\)/g, "")        // ![alt](url)
+      .replace(/\[([^\]]*)\]\(.*?\)/g, "$1")  // [text](url) → text
+      .replace(/!?\[[^\]]*\]/g, "")           // [Jump to content], !!] etc
+      .replace(/#{1,6}\s*/g, "")              // ## headings
+      .replace(/\*\*(.+?)\*\*/g, "$1")        // **bold**
+      .replace(/\*(.+?)\*/g, "$1")            // *italic*
+      .replace(/(\*\s*){3,}/g, "")            // * * * * * (hr / separators)
+      .replace(/\*+/g, "")                    // any remaining asterisks
+      .replace(/`(.+?)`/g, "$1")              // `code`
+      .replace(/---+/g, "")                   // --- horizontal rules
+      .replace(/&amp;/g, "&")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/\s{2,}/g, " ")
+      .trim();
   };
 
   const getFaviconUrl = (url: string) => {
@@ -543,6 +576,7 @@ function HomeContent({
                 setSpeciesLoading(false);
                 setHasSpeciesData(false);
                 setSpeciesLocations(null);
+                setRedListCategory(null);
                 try { sessionStorage.clear(); } catch {}
               }}
               className="flex-shrink-0"
@@ -611,6 +645,25 @@ function HomeContent({
             </motion.form>
             <ChatToggleButton />
           </div>
+        )}
+
+        {/* Header / Branding - Only show before first search */}
+        {!currentTopic && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-6 flex flex-col items-center gap-2 pt-2"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/savetheworld.png" alt="Save the World" className="h-12 w-12" />
+            <h1 className="font-serif text-4xl font-normal text-black dark:text-white">
+              Save the <span className="text-[rgb(234,179,8)]">World</span>
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              AI-powered conservation intelligence
+            </p>
+          </motion.div>
         )}
 
         {/* Mentions Carousel - Only show before first search */}
@@ -696,31 +749,29 @@ function HomeContent({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex items-center justify-center gap-8"
+            className="flex w-full max-w-3xl mx-auto items-center justify-between"
           >
-            <span className="text-sm text-gray-400 dark:text-gray-500">Powered by</span>
-            <div className="flex items-center gap-6">
-              <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-opacity hover:opacity-70">
+            <span className="text-sm uppercase tracking-wide text-gray-300 dark:text-gray-600">Empowered by</span>
+              <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 transition-opacity hover:opacity-70">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logos/stripe.svg" alt="Stripe" className="h-8 w-8 rounded-md" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Stripe</span>
+                <img src="/logos/stripe.svg" alt="Stripe" className="h-8 w-8 rounded-md opacity-40 grayscale" />
+                <span className="text-base font-medium uppercase tracking-wide text-gray-300 dark:text-gray-600">Stripe</span>
               </a>
-              <a href="https://exa.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-opacity hover:opacity-70">
+              <a href="https://exa.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 transition-opacity hover:opacity-70">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.png" alt="Exa" className="h-6 w-6 rounded-md" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Exa</span>
+                <img src="/logo.png" alt="Exa" className="h-6 w-6 rounded-md opacity-40 grayscale" />
+                <span className="text-base font-medium uppercase tracking-wide text-gray-300 dark:text-gray-600">Exa</span>
               </a>
-              <a href="https://cerebras.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-opacity hover:opacity-70">
+              <a href="https://cerebras.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 transition-opacity hover:opacity-70">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logos/cerebras.svg" alt="Cerebras" className="h-8 w-8 rounded-md" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Cerebras</span>
+                <img src="/logos/cerebras.svg" alt="Cerebras" className="h-8 w-8 rounded-md opacity-40 grayscale" />
+                <span className="text-base font-medium uppercase tracking-wide text-gray-300 dark:text-gray-600">Cerebras</span>
               </a>
-              <a href="https://www.hackeurope.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-opacity hover:opacity-70">
+              <a href="https://www.hackeurope.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 transition-opacity hover:opacity-70">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logos/hackeurope.png" alt="Hack Europe" className="h-8 w-8 rounded-md" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Hack Europe</span>
+                <img src="/logos/hackeurope.png" alt="Hack Europe" className="h-8 w-8 rounded-md opacity-40 grayscale" />
+                <span className="text-base font-medium uppercase tracking-wide text-gray-300 dark:text-gray-600">Hack Europe</span>
               </a>
-            </div>
           </motion.div>
         )}
 
@@ -1067,12 +1118,15 @@ function HomeContent({
                         <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(234,179,8)] group-hover:underline dark:text-[rgb(234,179,8)]">
                           {result.title}
                         </h3>
-                        {result.text && (
-                          <p className="mb-2 break-words text-xs text-gray-800 dark:text-gray-300">
-                            {result.text.slice(0, 150)}
-                            {result.text.length > 150 ? "..." : ""}
-                          </p>
-                        )}
+                        {result.text && (() => {
+                          const cleaned = cleanPreviewText(result.text);
+                          return cleaned ? (
+                            <p className="mb-2 break-words text-xs text-gray-800 dark:text-gray-300">
+                              {cleaned.slice(0, 150)}
+                              {cleaned.length > 150 ? "..." : ""}
+                            </p>
+                          ) : null;
+                        })()}
                         {result.publishedDate && (
                           <p className="text-xs text-gray-500">
                             {new Date(
@@ -1126,12 +1180,15 @@ function HomeContent({
                         <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(234,179,8)] group-hover:underline dark:text-[rgb(234,179,8)]">
                           {result.title}
                         </h3>
-                        {result.text && (
-                          <p className="mb-2 break-words text-xs text-gray-800 dark:text-gray-300">
-                            {result.text.slice(0, 120)}
-                            {result.text.length > 120 ? "..." : ""}
-                          </p>
-                        )}
+                        {result.text && (() => {
+                          const cleaned = cleanPreviewText(result.text);
+                          return cleaned ? (
+                            <p className="mb-2 break-words text-xs text-gray-800 dark:text-gray-300">
+                              {cleaned.slice(0, 120)}
+                              {cleaned.length > 120 ? "..." : ""}
+                            </p>
+                          ) : null;
+                        })()}
                         {result.publishedDate && (
                           <p className="text-xs text-gray-500">
                             {new Date(
