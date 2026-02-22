@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, createContext, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useChat } from "@ai-sdk/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 
 const ChatContext = createContext<{
@@ -265,9 +267,17 @@ export default function ChatPanel() {
                               : "text-gray-900 dark:text-white"
                           }`}
                         >
-                          <p className="whitespace-pre-wrap break-words">
-                            {message.content}
-                          </p>
+                          {message.role === "assistant" ? (
+                            <div className="prose-chat break-words">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {message.content}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap break-words">
+                              {message.content}
+                            </p>
+                          )}
                         </div>
                         {message.role === "assistant" && (
                           <div className="mt-2 flex gap-2">
