@@ -19,9 +19,10 @@ export async function POST(req: NextRequest) {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: cents,
       currency: "usd",
-      description: "Your Support to Save the World",
+      description: "Your Support to Save the World — all proceeds donated to WWF",
       metadata: {
         product: "savetheworld-donation",
+        recipient: "WWF",
       },
       automatic_payment_methods: {
         enabled: true,

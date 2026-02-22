@@ -328,8 +328,8 @@ export default function SupportButton() {
                   Your Support to Save&nbsp;the&nbsp;World
                 </h2>
                 <p className="mt-1.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                  Every contribution helps protect endangered species and build
-                  AI-powered conservation tools.
+                  All proceeds are donated to WWF to protect endangered species,
+                  restore habitats, and combat climate change.
                 </p>
               </div>
 
@@ -474,7 +474,8 @@ export default function SupportButton() {
                         Thank you!
                       </h3>
                       <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
-                        Your ${amount} donation helps protect our planet.
+                        Your ${amount} goes directly to WWF to protect
+                        endangered species and restore habitats.
                       </p>
                       <button
                         onClick={() => setIsOpen(false)}
