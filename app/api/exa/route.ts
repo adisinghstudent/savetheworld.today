@@ -17,7 +17,7 @@ const RESULT_TYPE_CONFIG: Record<
   }
 > = {
   youtube: {
-    includeDomains: ["youtube.com"],
+    includeDomains: ["youtube.com/@NatGeo", "youtube.com/@NationalGeographic", "youtube.com"],
     numResults: 10,
     useContents: false,
   },

@@ -1,7 +1,6 @@
-import { groq } from "@ai-sdk/groq";
-import { streamText, UIMessage, convertToModelMessages, tool } from "ai";
+import { cerebras } from "@ai-sdk/cerebras";
+import { streamText, UIMessage, convertToModelMessages } from "ai";
 import Exa from "exa-js";
-import { z } from "zod";
 
 export const maxDuration = 60;
 
@@ -11,8 +10,8 @@ const exa = exaApiKey ? new Exa(exaApiKey) : null;
 export async function POST(req: Request) {
   const { messages, webpageUrl }: { messages: UIMessage[]; webpageUrl?: string } = await req.json();
 
-  console.log("[groq] Chat API called with webpageUrl:", webpageUrl);
-  console.log("[groq] Number of messages:", messages.length);
+  console.log("[cerebras] Chat API called with webpageUrl:", webpageUrl);
+  console.log("[cerebras] Number of messages:", messages.length);
 
   // If webpage URL exists, crawl it immediately and add to context
   let crawledContent = null;
@@ -41,12 +40,12 @@ export async function POST(req: Request) {
     }
   }
 
-  console.log("[groq] Converting messages for Groq");
+  console.log("[cerebras] Converting messages for Cerebras");
   const convertedMessages = convertToModelMessages(messages);
-  console.log("[groq] Number of messages to send:", convertedMessages.length);
+  console.log("[cerebras] Number of messages to send:", convertedMessages.length);
 
   const systemMessage = crawledContent
-    ? `You are a helpful AI assistant. The user is viewing a webpage with the following content:
+    ? `You are an environmentally-focused AI assistant helping users explore topics related to wildlife conservation, climate change, and ecological health. The user is viewing a webpage with the following content:
 
 Title: ${crawledContent.title}
 URL: ${crawledContent.url}
@@ -54,16 +53,16 @@ URL: ${crawledContent.url}
 Content:
 ${crawledContent.content}
 
-Please answer the user's questions based on this webpage content. Provide clear, concise, and accurate responses.`
-    : "You are a helpful AI assistant. Provide clear, concise, and accurate responses.";
+Please answer the user's questions based on this webpage content. When relevant, connect topics back to environmental themes such as bee population decline, polar bear conservation, manatee protection, ocean health, and biodiversity. Favor referencing National Geographic and reputable environmental sources. Provide clear, concise, and accurate responses.`
+    : "You are an environmentally-focused AI assistant helping users explore topics related to wildlife conservation, climate change, and ecological health. When relevant, connect topics back to environmental themes such as bee population decline, polar bear conservation, manatee protection, ocean health, and biodiversity. Favor referencing National Geographic and reputable environmental sources. Provide clear, concise, and accurate responses.";
 
   const result = streamText({
-    model: groq("llama-3.3-70b-versatile"),
+    model: cerebras("gpt-oss-120b"),
     messages: convertedMessages,
     system: systemMessage,
   });
 
-  console.log("[groq] Streaming response (with webpage context:", !!crawledContent, ")");
+  console.log("[cerebras] Streaming response (with webpage context:", !!crawledContent, ")");
 
   return result.toTextStreamResponse();
 }

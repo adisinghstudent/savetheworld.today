@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, createContext, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useChat } from "@ai-sdk/react";
-import Image from "next/image";
+
 
 const ChatContext = createContext<{
   isOpen: boolean;
@@ -52,7 +52,7 @@ export function ChatToggleButton() {
           exit={{ opacity: 0, x: 20, transition: { duration: 0 } }}
           transition={{ duration: 0.3 }}
           onClick={() => setIsOpen(true)}
-          className="bg-gray-100 px-4 py-2 text-sm text-black transition-colors hover:bg-gray-200 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800"
+          className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-black transition-colors hover:bg-gray-200 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800"
           aria-label="Open chat"
         >
           Ask Page
@@ -199,7 +199,7 @@ export default function ChatPanel() {
           animate={{ width: 384 }}
           exit={{ width: 0 }}
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="flex h-screen flex-col overflow-hidden border-l border-gray-300 bg-white dark:border-gray-700 dark:bg-black"
+          className="flex h-screen flex-col overflow-hidden border-l border-gray-200/60 bg-[#f8f7f4] dark:border-gray-800/60 dark:bg-black"
         >
             {/* Close Button */}
             <div className="flex justify-end p-4">
@@ -219,7 +219,7 @@ export default function ChatPanel() {
               {messages.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-center">
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Start a conversation by typing a message below.
+                    Ask about bees, polar bears, manatees, or any environmental topic.
                   </p>
                 </div>
               ) : (
@@ -252,16 +252,16 @@ export default function ChatPanel() {
                               </>
                             ) : (
                               <>
-                                <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
-                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Exa Browser</span>
+                                <span className="text-base leading-none">🐝</span>
+                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Bees</span>
                               </>
                             )}
                           </div>
                         )}
                         <div
-                          className={`px-4 py-2.5 text-sm ${
+                          className={`rounded-lg px-4 py-2.5 text-sm ${
                             message.role === "user"
-                              ? "bg-[rgb(18,40,190)]/10 text-gray-900 dark:bg-[rgb(18,40,190)]/20 dark:text-white"
+                              ? "bg-[rgb(234,179,8)]/10 text-gray-900 dark:bg-[rgb(234,179,8)]/20 dark:text-white"
                               : "text-gray-900 dark:text-white"
                           }`}
                         >
@@ -302,7 +302,7 @@ export default function ChatPanel() {
                       animate={{ opacity: 1 }}
                       className="flex justify-start"
                     >
-                      <div className="max-w-[85%] border border-gray-300 bg-white p-3 text-sm dark:border-gray-700 dark:bg-black">
+                      <div className="max-w-[85%] rounded-lg border border-gray-200/60 bg-white/50 p-3 text-sm dark:border-gray-700/60 dark:bg-black/50">
                         <div className="flex gap-1">
                           <span className="animate-bounce text-gray-500 dark:text-gray-400">
                             •
@@ -329,7 +329,7 @@ export default function ChatPanel() {
             </div>
 
             {/* Input */}
-            <div className="border-t border-gray-200 p-4 dark:border-gray-800">
+            <div className="border-t border-gray-200/60 p-4 dark:border-gray-800/60">
               <div className="mb-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 {browserUrl && webpageTitle ? (
                   <>
@@ -347,8 +347,8 @@ export default function ChatPanel() {
                   </>
                 ) : (
                   <>
-                    <Image src="/logo.png" alt="Exa" width={16} height={16} className="h-4 w-4" />
-                    <span>Exa Browser</span>
+                    <span className="text-base leading-none">🐝</span>
+                    <span>Bees</span>
                   </>
                 )}
               </div>
@@ -371,7 +371,7 @@ export default function ChatPanel() {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask anything"
+                  placeholder="Ask about wildlife & the environment"
                   disabled={isLoading}
                   className="flex-1 border-b border-gray-300 bg-transparent py-2 text-sm text-gray-900 placeholder-gray-500 outline-none disabled:opacity-50 dark:border-gray-700 dark:text-white dark:placeholder-gray-400"
                 />

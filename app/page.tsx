@@ -1,10 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Image from "next/image";
+import { useState, useEffect, useRef } from "react";
+
 import { motion, AnimatePresence } from "framer-motion";
 import ChatPanel, { ChatProvider, ChatToggleButton, useChatPanel } from "@/components/ChatPanel";
-import RotatingEarth from "@/components/ui/wireframe-dotted-globe";
+import MapGlobePanel, { GlobeProvider, GlobeToggleButton, LocationButton } from "@/components/MapGlobePanel";
+import SupportButton from "@/components/SupportButton";
+
+const CAROUSEL_MENTIONS = [
+  { platform: "𝕏", handle: "@climateAI_lab", text: "We need a better way to track what's happening to our planet in real-time. The data is out there, but nobody's connecting the dots.", color: "text-blue-400" },
+  { platform: "Reddit", handle: "r/environment", text: "Is anyone building AI tools that actually help the environment instead of just consuming more energy? Genuinely curious.", color: "text-orange-500" },
+  { platform: "𝕏", handle: "@rewaboreal", text: "Imagine an AI that could monitor every endangered species population globally and alert conservationists instantly. Why doesn't this exist yet?", color: "text-blue-400" },
+  { platform: "Reddit", handle: "r/MachineLearning", text: "Hot take: the biggest impact AI can have isn't chatbots — it's ecological monitoring and climate prediction models.", color: "text-orange-500" },
+  { platform: "𝕏", handle: "@oceanwatch_org", text: "Coral reefs are dying faster than we can study them. We need AI-powered tracking at global scale, not just individual research stations.", color: "text-blue-400" },
+  { platform: "Reddit", handle: "r/datascience", text: "Just saw a project using satellite imagery + ML to track deforestation in real time. This is what tech should be doing.", color: "text-orange-500" },
+  { platform: "𝕏", handle: "@bee_guardian", text: "Bee colony collapse is accelerating. We're tracking hive health with sensors but need AI to make sense of the data across millions of hives.", color: "text-blue-400" },
+  { platform: "Reddit", handle: "r/Futurology", text: "The planet is literally on fire and we're using AI to generate memes. Can we redirect some of that compute to saving ecosystems?", color: "text-orange-500" },
+  { platform: "𝕏", handle: "@arctic_signals", text: "Polar ice data comes in months late. By the time we act, it's already too late. Real-time planetary intelligence is the missing piece.", color: "text-blue-400" },
+  { platform: "Reddit", handle: "r/climate", text: "Somebody needs to build the 'Google Earth for conservation' — real-time, AI-powered, open to everyone. The technology exists. The will doesn't.", color: "text-orange-500" },
+  { platform: "𝕏", handle: "@natgeo_tech", text: "What if we could search for any species, any ecosystem, and instantly see its health status? That's the future of conservation tech.", color: "text-blue-400" },
+  { platform: "Reddit", handle: "r/singularity", text: "AI for planetary health > AI for ad targeting. Who's actually working on this? Drop links.", color: "text-orange-500" },
+];
 
 interface SearchResult {
   title: string;
@@ -18,13 +34,118 @@ interface GroupedResults {
   [key: string]: SearchResult[];
 }
 
-const LOADING_STATES = ["Tinkering", "Plotting", "Grounding", "Analyzing"];
+const LOADING_STATES = ["Foraging", "Migrating", "Pollinating", "Conserving"];
 const SEARCH_SUGGESTIONS = [
-  "Barack Obama",
-  "Green Seaweed in Malaysia",
-  "Fifa World Cup 2026",
-  "Transformer Architecture explained"
+  "Why are bee populations declining in 2026",
+  "Polar bear health and Arctic ice loss 2026",
+  "Manatee population status worldwide",
+  "National Geographic ocean conservation",
+  "Coral reef bleaching crisis latest updates",
+  "Endangered species recovery success stories"
 ];
+
+interface Mention {
+  platform: string;
+  handle: string;
+  text: string;
+  url?: string;
+  color?: string;
+}
+
+function MentionsCarousel() {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [mentions, setMentions] = useState<Mention[]>(CAROUSEL_MENTIONS);
+
+  // Fetch real mentions from Exa
+  useEffect(() => {
+    fetch("/api/mentions")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.mentions && data.mentions.length > 0) {
+          setMentions(
+            data.mentions.map((m: Mention) => ({
+              ...m,
+              color: m.platform === "𝕏" ? "text-blue-400" : "text-orange-500",
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        // Keep static fallback
+      });
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let animationId: number;
+    let scrollPos = 0;
+    const speed = 0.5;
+
+    const scroll = () => {
+      scrollPos += speed;
+      if (el.scrollWidth > 0 && scrollPos >= el.scrollWidth / 2) {
+        scrollPos = 0;
+      }
+      el.scrollLeft = scrollPos;
+      animationId = requestAnimationFrame(scroll);
+    };
+
+    animationId = requestAnimationFrame(scroll);
+
+    const pause = () => cancelAnimationFrame(animationId);
+    const resume = () => { animationId = requestAnimationFrame(scroll); };
+    el.addEventListener("mouseenter", pause);
+    el.addEventListener("mouseleave", resume);
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      el.removeEventListener("mouseenter", pause);
+      el.removeEventListener("mouseleave", resume);
+    };
+  }, [mentions]);
+
+  // Double for seamless looping
+  const items = [...mentions, ...mentions];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+      className="mb-4 w-full"
+    >
+      <div
+        ref={scrollRef}
+        className="flex gap-3 overflow-hidden"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {items.map((mention, idx) => (
+          <a
+            key={idx}
+            href={mention.url || "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-[320px] flex-shrink-0 cursor-pointer rounded-lg border border-gray-200 bg-gray-50/50 p-4 transition-colors hover:border-gray-300 hover:bg-gray-100/50 dark:border-gray-800 dark:bg-gray-900/50 dark:hover:border-gray-700 dark:hover:bg-gray-800/50"
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <span className={`text-xs font-semibold ${mention.color}`}>
+                {mention.platform}
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {mention.handle}
+              </span>
+            </div>
+            <p className="line-clamp-3 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+              &ldquo;{mention.text}&rdquo;
+            </p>
+          </a>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
 
 function HomeContent({
   browserUrl,
@@ -249,10 +370,13 @@ function HomeContent({
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-black">
+    <div className="flex h-screen overflow-hidden bg-[#f8f7f4] dark:bg-black">
+        {/* Globe Sidebar */}
+        <MapGlobePanel />
+
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto">
-          <main className={`mx-auto h-full ${currentTopic ? 'max-w-full px-2 py-2' : 'max-w-7xl px-4 py-16'}`}>
+          <main className={`mx-auto h-full ${currentTopic ? 'max-w-full px-2 py-2' : 'flex max-w-7xl flex-col px-4 pt-6'}`}>
         {/* Top Bar with Search - Only show after first search */}
         {currentTopic && (
           <div className="mb-4 flex items-center gap-2 px-2">
@@ -265,14 +389,11 @@ function HomeContent({
               }}
               className="flex-shrink-0"
             >
-              <Image
-                src="/logo.png"
-                alt="Exa logo"
-                width={24}
-                height={24}
-                className="h-6 w-auto transition-opacity hover:opacity-80"
-              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/savetheworld.png" alt="Save the Bees" className="h-6 w-6 transition-opacity hover:opacity-80" />
             </button>
+            <GlobeToggleButton />
+            <LocationButton />
             {loading && (
               <AnimatePresence mode="wait">
                 <motion.span
@@ -305,14 +426,14 @@ function HomeContent({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={currentTopic}
-                  className={`w-full border border-gray-300 px-4 py-2 pr-12 text-sm outline-none transition-colors focus:border-[rgb(18,40,190)] dark:border-gray-700 dark:bg-black dark:text-white ${
+                  className={`w-full rounded-lg border border-gray-300 px-4 py-2 pr-12 text-sm outline-none transition-colors focus:border-[rgb(234,179,8)] dark:border-gray-700 dark:bg-black dark:text-white ${
                     query ? "" : "font-serif placeholder:font-serif"
                   }`}
                 />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgb(18,40,190)] p-1.5 text-white transition-colors hover:bg-[rgb(14,30,150)]"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-[rgb(234,179,8)] p-1.5 text-white transition-colors hover:bg-[rgb(202,138,4)]"
                 >
                   <svg
                     className="h-4 w-4"
@@ -334,40 +455,26 @@ function HomeContent({
           </div>
         )}
 
-        {/* Centered Logo - Only show before first search */}
+        {/* Mentions Carousel - Only show before first search */}
         {!currentTopic && (
-          <div className="mb-8 flex justify-center">
-            <div className="flex items-center gap-2">
-              <Image
-                src="/logo.png"
-                alt="Exa logo"
-                width={32}
-                height={32}
-              />
-              <AnimatePresence mode="wait">
-                {loading ? (
-                  <motion.span
-                    key={loadingStateIndex}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    transition={{ duration: 0.3 }}
-                    className="font-serif text-[32px] font-normal leading-none text-black dark:text-white"
-                  >
-                    {LOADING_STATES[loadingStateIndex]}...
-                  </motion.span>
-                ) : (
-                  <motion.span
-                    key="static"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="font-serif text-[48px] font-normal leading-none text-[rgb(18,40,190)]"
-                  >
-                    Exa Browser
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </div>
+          <MentionsCarousel />
+        )}
+
+        {/* Loading state - Only show before first search */}
+        {!currentTopic && loading && (
+          <div className="mb-4 flex justify-center">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={loadingStateIndex}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.3 }}
+                className="font-serif text-[32px] font-normal leading-none text-black dark:text-white"
+              >
+                {LOADING_STATES[loadingStateIndex]}...
+              </motion.span>
+            </AnimatePresence>
           </div>
         )}
 
@@ -375,7 +482,7 @@ function HomeContent({
         {!currentTopic && (
           <motion.form
             onSubmit={handleSearch}
-            className="mb-8"
+            className="mb-4 mt-4"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
@@ -386,14 +493,14 @@ function HomeContent({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={placeholderText}
-                className={`w-full border border-gray-300 px-4 py-3 pr-12 text-base text-black outline-none transition-colors focus:border-[rgb(18,40,190)] dark:border-gray-700 dark:bg-black dark:text-white ${
+                className={`w-full rounded-lg border border-gray-300 px-5 py-4 pr-14 text-lg text-black outline-none transition-colors focus:border-[rgb(234,179,8)] dark:border-gray-700 dark:bg-black dark:text-white ${
                   query ? "" : "font-serif placeholder:font-serif"
                 }`}
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-[rgb(18,40,190)] p-2 text-white transition-colors hover:bg-[rgb(14,30,150)]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md bg-[rgb(234,179,8)] p-2.5 text-white transition-colors hover:bg-[rgb(202,138,4)]"
               >
                 <svg
                   className="h-5 w-5"
@@ -415,7 +522,7 @@ function HomeContent({
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
-                className="border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+                className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
               >
                 {error}
               </motion.div>
@@ -423,17 +530,75 @@ function HomeContent({
           </motion.form>
         )}
 
-        {/* Globe - Only show before first search */}
+        {/* Powered by logos - Only show before first search */}
+        {!currentTopic && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="flex items-center justify-center gap-8"
+          >
+            <span className="text-sm text-gray-400 dark:text-gray-500">Powered by</span>
+            <div className="flex items-center gap-6">
+              <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-opacity hover:opacity-70">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logos/stripe.svg" alt="Stripe" className="h-8 w-8 rounded-md" />
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Stripe</span>
+              </a>
+              <a href="https://exa.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-opacity hover:opacity-70">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="Exa" className="h-6 w-6 rounded-md" />
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Exa</span>
+              </a>
+              <a href="https://cerebras.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-opacity hover:opacity-70">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logos/cerebras.svg" alt="Cerebras" className="h-8 w-8 rounded-md" />
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Cerebras</span>
+              </a>
+              <a href="https://www.hackeurope.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-opacity hover:opacity-70">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logos/hackeurope.png" alt="Hack Europe" className="h-8 w-8 rounded-md" />
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Hack Europe</span>
+              </a>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Hero image - Only show before first search, pushed to bottom */}
+        {!currentTopic && <div className="flex-1" />}
         <AnimatePresence>
           {!currentTopic && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
-              className="mx-auto max-w-3xl"
+              exit={{ opacity: 0, y: 40 }}
+              transition={{ duration: 0.5 }}
+              className="mx-auto w-full max-w-5xl overflow-hidden rounded-t-2xl" style={{ marginBottom: '-8%' }}
             >
-              <RotatingEarth width={800} height={500} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/savetheworldhero.png" alt="Save the World" className="mx-auto w-full" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Endangered Species Population Status */}
+        <AnimatePresence>
+          {!loading && Object.keys(results).length > 0 && currentTopic && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className="mb-4 rounded-lg border border-gray-200 px-4 py-2.5 dark:border-gray-800"
+            >
+              <div className="flex items-center gap-2.5">
+                <svg className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="text-gray-700 dark:text-gray-300">{currentTopic}</span> &middot; Est. ~2,000 remaining &middot; Trend: Declining (-4.2%/yr) &middot; Endangered
+                </p>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -447,14 +612,14 @@ function HomeContent({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="mb-2 flex h-[calc(100vh-70px)] flex-col"
+              className="mb-2 flex h-[calc(100vh-70px)] flex-col overflow-hidden rounded-xl border border-gray-200/60 dark:border-gray-800/60"
             >
               {/* Browser Controls Bar */}
-              <div className="flex items-center gap-2 bg-gray-50 p-2 dark:bg-gray-900">
+              <div className="flex items-center gap-2 bg-gray-50/80 p-2 dark:bg-gray-900/80">
                 {/* Back to Results (double arrow left) */}
                 <button
                   onClick={() => setBrowserUrl(null)}
-                  className="flex items-center justify-center p-2 text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+                  className="flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-gray-200/60 dark:text-gray-400 dark:hover:bg-gray-800/60"
                   aria-label="Back to results"
                 >
                   <svg
@@ -475,7 +640,7 @@ function HomeContent({
                 {/* Back Arrow (browser navigation - single arrow) */}
                 <button
                   onClick={() => window.history.back()}
-                  className="flex items-center justify-center p-2 text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+                  className="flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-gray-200/60 dark:text-gray-400 dark:hover:bg-gray-800/60"
                   aria-label="Go back in browser"
                 >
                   <svg
@@ -494,7 +659,7 @@ function HomeContent({
                 </button>
 
                 {/* URL Display */}
-                <div className="flex flex-1 items-center gap-2 bg-white px-3 py-1.5 dark:bg-black">
+                <div className="flex flex-1 items-center gap-2 rounded-lg bg-white/70 px-3 py-1.5 dark:bg-black/50">
                   <p className="flex-1 truncate text-sm text-gray-600 dark:text-gray-400">
                     {browserUrl}
                   </p>
@@ -508,7 +673,7 @@ function HomeContent({
                 {/* Proxy Toggle Button */}
                 <button
                   onClick={() => setUseProxy(!useProxy)}
-                  className="flex items-center justify-center p-2 text-sm text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+                  className="flex items-center justify-center rounded-md p-2 text-sm text-gray-500 transition-colors hover:bg-gray-200/60 dark:text-gray-400 dark:hover:bg-gray-800/60"
                   aria-label="Toggle proxy mode"
                   title={useProxy ? 'Switch to direct mode' : 'Switch to proxy mode'}
                 >
@@ -532,7 +697,7 @@ function HomeContent({
                   href={browserUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center p-2 text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+                  className="flex items-center justify-center rounded-md p-2 text-gray-500 transition-colors hover:bg-gray-200/60 dark:text-gray-400 dark:hover:bg-gray-800/60"
                   aria-label="Open in browser"
                 >
                   <svg
@@ -552,7 +717,7 @@ function HomeContent({
               </div>
 
               {/* Browser Frame */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden rounded-lg">
                 {useProxy ? (
                   <iframe
                     key={`proxy-${browserUrl}`}
@@ -614,14 +779,14 @@ function HomeContent({
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className="border border-gray-200 p-3 transition-colors hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
+                        className="rounded-lg border border-gray-200 p-3 transition-colors hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
                       >
                         <div
                           onClick={() => setBrowserUrl(result.url)}
                           className="group block cursor-pointer"
                         >
                           {thumbnail && (
-                            <div className="mb-2 overflow-hidden">
+                            <div className="mb-2 overflow-hidden rounded-md">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={thumbnail}
@@ -630,7 +795,7 @@ function HomeContent({
                               />
                             </div>
                           )}
-                          <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(18,40,190)] group-hover:underline dark:text-[rgb(18,40,190)]">
+                          <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(234,179,8)] group-hover:underline dark:text-[rgb(234,179,8)]">
                             {result.title}
                           </h3>
                           {result.publishedDate && (
@@ -678,13 +843,13 @@ function HomeContent({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="border border-gray-200 p-3 transition-colors hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
+                      className="rounded-lg border border-gray-200 p-3 transition-colors hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
                     >
                       <div
                         onClick={() => setBrowserUrl(result.url)}
                         className="group block cursor-pointer"
                       >
-                        <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(18,40,190)] group-hover:underline dark:text-[rgb(18,40,190)]">
+                        <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(234,179,8)] group-hover:underline dark:text-[rgb(234,179,8)]">
                           {result.title}
                         </h3>
                         {result.text && (
@@ -737,13 +902,13 @@ function HomeContent({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="border border-gray-200 p-3 transition-colors hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
+                      className="rounded-lg border border-gray-200 p-3 transition-colors hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
                     >
                       <div
                         onClick={() => setBrowserUrl(result.url)}
                         className="group block cursor-pointer"
                       >
-                        <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(18,40,190)] group-hover:underline dark:text-[rgb(18,40,190)]">
+                        <h3 className="font-serif mb-1 break-words text-sm font-normal text-[rgb(234,179,8)] group-hover:underline dark:text-[rgb(234,179,8)]">
                           {result.title}
                         </h3>
                         {result.text && (
@@ -774,6 +939,9 @@ function HomeContent({
 
         {/* Chat Panel */}
         <ChatPanel />
+
+        {/* Support Button */}
+        <SupportButton />
       </div>
   );
 }
@@ -783,7 +951,9 @@ export default function Home() {
 
   return (
     <ChatProvider browserUrl={browserUrl}>
-      <HomeContent browserUrl={browserUrl} setBrowserUrl={setBrowserUrl} />
+      <GlobeProvider>
+        <HomeContent browserUrl={browserUrl} setBrowserUrl={setBrowserUrl} />
+      </GlobeProvider>
     </ChatProvider>
   );
 }

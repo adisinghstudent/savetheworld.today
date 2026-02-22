@@ -14,11 +14,11 @@ interface GroupedResults {
 }
 
 export async function POST(request: NextRequest) {
-  const groqApiKey = process.env.GROQ_API_KEY;
+  const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
 
-  if (!groqApiKey) {
+  if (!cerebrasApiKey) {
     return NextResponse.json(
-      { error: "GROQ_API_KEY not configured" },
+      { error: "CEREBRAS_API_KEY not configured" },
       { status: 500 }
     );
   }
@@ -64,15 +64,15 @@ export async function POST(request: NextRequest) {
 
     const daysRange = dateRange[1];
 
-    // Call Groq API
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    // Call Cerebras API (OpenAI-compatible)
+    const cerebrasResponse = await fetch("https://api.cerebras.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${groqApiKey}`,
+        "Authorization": `Bearer ${cerebrasApiKey}`,
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "gpt-oss-120b",
         messages: [
           {
             role: "system",
@@ -108,16 +108,16 @@ Respond in JSON format:
       }),
     });
 
-    if (!groqResponse.ok) {
-      const errorText = await groqResponse.text();
-      throw new Error(`Groq API error: ${groqResponse.status} - ${errorText}`);
+    if (!cerebrasResponse.ok) {
+      const errorText = await cerebrasResponse.text();
+      throw new Error(`Cerebras API error: ${cerebrasResponse.status} - ${errorText}`);
     }
 
-    const groqData = await groqResponse.json();
-    const aiResponse = groqData.choices[0]?.message?.content;
+    const cerebrasData = await cerebrasResponse.json();
+    const aiResponse = cerebrasData.choices[0]?.message?.content;
 
     if (!aiResponse) {
-      throw new Error("No response from Groq API");
+      throw new Error("No response from Cerebras API");
     }
 
     const summary = JSON.parse(aiResponse);

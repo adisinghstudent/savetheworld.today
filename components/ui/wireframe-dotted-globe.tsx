@@ -153,9 +153,9 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
       // Draw ocean (globe background)
       context.beginPath()
       context.arc(containerWidth / 2, containerHeight / 2, currentScale, 0, 2 * Math.PI)
-      context.fillStyle = "rgb(18, 40, 190)"
+      context.fillStyle = "rgb(173, 216, 230)"
       context.fill()
-      context.strokeStyle = "#ffffff"
+      context.strokeStyle = "rgb(234, 179, 8)"
       context.lineWidth = 2 * scaleFactor
       context.stroke()
 
@@ -164,18 +164,20 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
         const graticule = d3.geoGraticule()
         context.beginPath()
         path(graticule())
-        context.strokeStyle = "#ffffff"
+        context.strokeStyle = "rgb(100, 180, 100)"
         context.lineWidth = 1 * scaleFactor
         context.globalAlpha = globeOpacity * 0.25
         context.stroke()
         context.globalAlpha = globeOpacity
 
-        // Draw land outlines
+        // Draw land fills and outlines
         context.beginPath()
         landFeatures.features.forEach((feature: any) => {
           path(feature)
         })
-        context.strokeStyle = "#ffffff"
+        context.fillStyle = "rgb(76, 175, 80)"
+        context.fill()
+        context.strokeStyle = "rgb(56, 142, 60)"
         context.lineWidth = 1 * scaleFactor
         context.stroke()
 
@@ -191,7 +193,7 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
           ) {
             context.beginPath()
             context.arc(projected[0], projected[1], 1.2 * scaleFactor, 0, 2 * Math.PI)
-            context.fillStyle = "#999999"
+            context.fillStyle = "rgb(56, 142, 60)"
             context.fill()
           }
         })

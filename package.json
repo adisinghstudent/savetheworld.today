@@ -13,12 +13,15 @@
     "@ai-sdk/groq": "^2.0.29",
     "@ai-sdk/openai": "^2.0.68",
     "@ai-sdk/react": "^2.0.93",
+    "@next/swc-darwin-arm64": "^16.1.6",
+    "@stripe/stripe-js": "^8.8.0",
     "ai": "^5.0.93",
     "d3": "^7.9.0",
     "exa-js": "^2.0.3",
     "framer-motion": "^12.23.24",
     "http-proxy-middleware": "^3.0.5",
-    "next": "16.0.3",
+    "mapbox-gl": "^3.18.1",
+    "next": "^16.1.6",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "zod": "^3.25.76"
@@ -26,12 +29,13 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/d3": "^7.4.3",
+    "@types/mapbox-gl": "^3.5.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.0.3",
+    "eslint-config-next": "^16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }
