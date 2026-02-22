@@ -1,11 +1,68 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Component, type ReactNode, type ErrorInfo } from "react";
 
 import { motion, AnimatePresence } from "framer-motion";
 import ChatPanel, { ChatProvider, ChatToggleButton, useChatPanel } from "@/components/ChatPanel";
-import MapGlobePanel, { GlobeProvider, GlobeToggleButton, LocationButton } from "@/components/MapGlobePanel";
+import MapGlobePanel, { GlobeProvider, GlobeToggleButton, LocationButton, useGlobePanel } from "@/components/MapGlobePanel";
 import SupportButton from "@/components/SupportButton";
+
+// --- Session storage helpers for state persistence ---
+function saveToSession(key: string, value: unknown) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore quota errors
+  }
+}
+
+function loadFromSession<T>(key: string, fallback: T): T {
+  try {
+    const stored = sessionStorage.getItem(key);
+    if (stored) return JSON.parse(stored) as T;
+  } catch {
+    // Ignore parse errors
+  }
+  return fallback;
+}
+
+// --- Error Boundary ---
+class ErrorBoundary extends Component<
+  { children: ReactNode; fallback?: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback?: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[ErrorBoundary] caught:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        this.props.fallback ?? (
+          <div className="flex h-full items-center justify-center p-8 text-sm text-gray-500">
+            Something went wrong.{" "}
+            <button
+              onClick={() => this.setState({ hasError: false })}
+              className="ml-2 underline hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              Try again
+            </button>
+          </div>
+        )
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const CAROUSEL_MENTIONS = [
   { platform: "𝕏", handle: "@climateAI_lab", text: "We need a better way to track what's happening to our planet in real-time. The data is out there, but nobody's connecting the dots.", color: "text-blue-400" },
@@ -33,6 +90,32 @@ interface SearchResult {
 interface GroupedResults {
   [key: string]: SearchResult[];
 }
+
+interface SpeciesInfo {
+  commonName: string | null;
+  scientificName: string;
+  redListCategory: string;
+  redListCategoryName: string;
+  populationTrend: string;
+  populationTrendName: string;
+  populationSize: string | null;
+  nativeCountryCount: number;
+  threats: string[];
+  iucnUrl: string;
+  year: number | null;
+}
+
+const IUCN_CATEGORY_COLORS: Record<string, string> = {
+  EX: "#000000",
+  EW: "#000000",
+  CR: "#cc3333",
+  EN: "#d4500c",
+  VU: "#cc9900",
+  NT: "#228b22",
+  LC: "#006666",
+  DD: "#999999",
+  NE: "#bbbbbb",
+};
 
 const LOADING_STATES = ["Foraging", "Migrating", "Pollinating", "Conserving"];
 const SEARCH_SUGGESTIONS = [
@@ -155,14 +238,29 @@ function HomeContent({
   setBrowserUrl: (url: string | null) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [currentTopic, setCurrentTopic] = useState("");
+  const [currentTopic, _setCurrentTopic] = useState(() => loadFromSession("currentTopic", ""));
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<GroupedResults>({});
+  const [results, _setResults] = useState<GroupedResults>(() => loadFromSession("results", {}));
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<[number, number]>([0, 30]);
   const [useProxy, setUseProxy] = useState(true);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const { isOpen } = useChatPanel();
+  const { setHasSpeciesData, setSpeciesLocations } = useGlobePanel();
+
+  // Wrap setters to persist to sessionStorage
+  const setCurrentTopic = (topic: string) => {
+    _setCurrentTopic(topic);
+    saveToSession("currentTopic", topic);
+  };
+  const setResults = (r: GroupedResults) => {
+    _setResults(r);
+    saveToSession("results", r);
+  };
+
+  // Species data state
+  const [speciesInfo, setSpeciesInfo] = useState<SpeciesInfo | null>(null);
+  const [speciesLoading, setSpeciesLoading] = useState(false);
 
   // Animated loading state
   const [loadingStateIndex, setLoadingStateIndex] = useState(0);
@@ -274,9 +372,14 @@ function HomeContent({
     setLoading(true);
     setError(null);
     setCurrentTopic(searchQuery);
+    setSpeciesInfo(null);
+    setSpeciesLoading(true);
+    setHasSpeciesData(false);
+    setSpeciesLocations(null);
 
-    try {
-      const res = await fetch("/api/exa", {
+    // Run Exa search and species name resolution in parallel
+    const [exaResult, speciesSearchResult] = await Promise.allSettled([
+      fetch("/api/exa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -284,21 +387,69 @@ function HomeContent({
           mode: "auto",
           resultTypes: ["youtube", "twitter", "news", "linkedin", "medium", "reddit", "github"],
         }),
-      });
+      }).then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to fetch results");
+        return data;
+      }),
+      fetch(`/api/species-search?q=${encodeURIComponent(searchQuery)}`).then((res) => res.json()),
+    ]);
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to fetch results");
-      }
-
-      setResults(data.results || {});
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+    // Handle Exa results immediately
+    if (exaResult.status === "fulfilled") {
+      setResults(exaResult.value.results || {});
+    } else {
+      setError(exaResult.reason?.message || "An error occurred");
       setResults({});
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
+
+    // Handle species detection (non-blocking for Exa results)
+    if (
+      speciesSearchResult.status === "fulfilled" &&
+      speciesSearchResult.value.candidates?.length > 0
+    ) {
+      const candidate = speciesSearchResult.value.candidates[0];
+      const scientificName = candidate.scientificName;
+
+      // Fetch IUCN data and GBIF occurrences in parallel
+      const [iucnResult, gbifResult] = await Promise.allSettled([
+        fetch(`/api/species?name=${encodeURIComponent(scientificName)}`).then((res) => res.json()),
+        fetch(`/api/species-occurrences?name=${encodeURIComponent(scientificName)}&limit=300`).then((res) => res.json()),
+      ]);
+
+      // Process IUCN data
+      if (iucnResult.status === "fulfilled" && iucnResult.value.found) {
+        const { taxon, assessment } = iucnResult.value;
+        setSpeciesInfo({
+          commonName: candidate.label || taxon.commonName,
+          scientificName: taxon.scientificName,
+          redListCategory: assessment.redListCategory,
+          redListCategoryName: assessment.redListCategoryName,
+          populationTrend: assessment.populationTrend,
+          populationTrendName: assessment.populationTrendName,
+          populationSize: assessment.populationSize,
+          nativeCountryCount: assessment.nativeCountries?.length || 0,
+          threats: assessment.threats || [],
+          iucnUrl: assessment.iucnUrl,
+          year: assessment.year,
+        });
+
+        // Set globe data
+        const countryCodes = assessment.nativeCountries || [];
+        const occurrences =
+          gbifResult.status === "fulfilled"
+            ? gbifResult.value.occurrences || []
+            : [];
+
+        if (countryCodes.length > 0 || occurrences.length > 0) {
+          setSpeciesLocations({ countryCodes, occurrences });
+          setHasSpeciesData(true);
+        }
+      }
+    }
+
+    setSpeciesLoading(false);
   };
 
   const getYouTubeVideoId = (url: string) => {
@@ -372,7 +523,9 @@ function HomeContent({
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f7f4] dark:bg-black">
         {/* Globe Sidebar */}
-        <MapGlobePanel />
+        <ErrorBoundary fallback={null}>
+          <MapGlobePanel />
+        </ErrorBoundary>
 
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto">
@@ -386,6 +539,11 @@ function HomeContent({
                 setResults({});
                 setQuery("");
                 setBrowserUrl(null);
+                setSpeciesInfo(null);
+                setSpeciesLoading(false);
+                setHasSpeciesData(false);
+                setSpeciesLocations(null);
+                try { sessionStorage.clear(); } catch {}
               }}
               className="flex-shrink-0"
             >
@@ -457,7 +615,9 @@ function HomeContent({
 
         {/* Mentions Carousel - Only show before first search */}
         {!currentTopic && (
-          <MentionsCarousel />
+          <ErrorBoundary fallback={null}>
+            <MentionsCarousel />
+          </ErrorBoundary>
         )}
 
         {/* Loading state - Only show before first search */}
@@ -581,9 +741,9 @@ function HomeContent({
           )}
         </AnimatePresence>
 
-        {/* Endangered Species Population Status */}
+        {/* Species Conservation Status */}
         <AnimatePresence>
-          {!loading && Object.keys(results).length > 0 && currentTopic && (
+          {currentTopic && (speciesLoading || speciesInfo) && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -591,14 +751,58 @@ function HomeContent({
               transition={{ duration: 0.3 }}
               className="mb-4 rounded-lg border border-gray-200 px-4 py-2.5 dark:border-gray-800"
             >
-              <div className="flex items-center gap-2.5">
-                <svg className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  <span className="text-gray-700 dark:text-gray-300">{currentTopic}</span> &middot; Est. ~2,000 remaining &middot; Trend: Declining (-4.2%/yr) &middot; Endangered
-                </p>
-              </div>
+              {speciesLoading && !speciesInfo ? (
+                <div className="flex items-center gap-2.5">
+                  <svg className="h-4 w-4 flex-shrink-0 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Looking up species data...
+                  </p>
+                </div>
+              ) : speciesInfo ? (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span
+                    className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white"
+                    style={{ backgroundColor: IUCN_CATEGORY_COLORS[speciesInfo.redListCategory] || "#bbb" }}
+                  >
+                    {speciesInfo.redListCategoryName}
+                  </span>
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                    {speciesInfo.commonName || speciesInfo.scientificName}
+                  </span>
+                  <span className="text-xs italic text-gray-500 dark:text-gray-400">
+                    {speciesInfo.scientificName}
+                  </span>
+                  {speciesInfo.populationSize && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      &middot; {speciesInfo.populationSize.length > 80 ? speciesInfo.populationSize.slice(0, 80) + "..." : speciesInfo.populationSize}
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    &middot; Trend: {speciesInfo.populationTrendName}
+                  </span>
+                  {speciesInfo.nativeCountryCount > 0 && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      &middot; {speciesInfo.nativeCountryCount} native {speciesInfo.nativeCountryCount === 1 ? "country" : "countries"}
+                    </span>
+                  )}
+                  {speciesInfo.threats.length > 0 && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      &middot; Threats: {speciesInfo.threats.slice(0, 2).join(", ")}
+                    </span>
+                  )}
+                  <a
+                    href={speciesInfo.iucnUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[rgb(234,179,8)] hover:underline"
+                  >
+                    IUCN Red List
+                  </a>
+                </div>
+              ) : null}
             </motion.div>
           )}
         </AnimatePresence>
@@ -718,23 +922,34 @@ function HomeContent({
 
               {/* Browser Frame */}
               <div className="flex-1 overflow-hidden rounded-lg">
-                {useProxy ? (
-                  <iframe
-                    key={`proxy-${browserUrl}`}
-                    src={`/api/proxy?url=${encodeURIComponent(browserUrl)}`}
-                    className="h-full w-full"
-                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                    title="Browser (Proxied)"
-                  />
-                ) : (
-                  <iframe
-                    key={`direct-${browserUrl}`}
-                    src={getEmbedUrl(browserUrl)}
-                    className="h-full w-full"
-                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                    title="Browser"
-                  />
-                )}
+                <ErrorBoundary
+                  fallback={
+                    <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                      Failed to load page.{" "}
+                      <button onClick={() => setBrowserUrl(null)} className="ml-2 underline">
+                        Back to results
+                      </button>
+                    </div>
+                  }
+                >
+                  {useProxy ? (
+                    <iframe
+                      key={`proxy-${browserUrl}`}
+                      src={`/api/proxy?url=${encodeURIComponent(browserUrl)}`}
+                      className="h-full w-full"
+                      sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                      title="Browser (Proxied)"
+                    />
+                  ) : (
+                    <iframe
+                      key={`direct-${browserUrl}`}
+                      src={getEmbedUrl(browserUrl)}
+                      className="h-full w-full"
+                      sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                      title="Browser"
+                    />
+                  )}
+                </ErrorBoundary>
               </div>
             </motion.div>
           ) : !loading && Object.keys(results).length > 0 ? (
@@ -947,12 +1162,19 @@ function HomeContent({
 }
 
 export default function Home() {
-  const [browserUrl, setBrowserUrl] = useState<string | null>(null);
+  const [browserUrl, _setBrowserUrl] = useState<string | null>(() => loadFromSession("browserUrl", null));
+
+  const setBrowserUrl = (url: string | null) => {
+    _setBrowserUrl(url);
+    saveToSession("browserUrl", url);
+  };
 
   return (
     <ChatProvider browserUrl={browserUrl}>
       <GlobeProvider>
-        <HomeContent browserUrl={browserUrl} setBrowserUrl={setBrowserUrl} />
+        <ErrorBoundary>
+          <HomeContent browserUrl={browserUrl} setBrowserUrl={setBrowserUrl} />
+        </ErrorBoundary>
       </GlobeProvider>
     </ChatProvider>
   );

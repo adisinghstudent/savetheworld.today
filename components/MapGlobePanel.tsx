@@ -17,6 +17,11 @@ const DESTINATION = { lng: 34.8333, lat: -2.3333 };
 
 type LocationStatus = "idle" | "loading" | "success" | "error";
 
+interface SpeciesLocations {
+  countryCodes: string[];
+  occurrences: { lat: number; lng: number; year?: number | null; country?: string | null }[];
+}
+
 const GlobeContext = createContext<{
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
@@ -24,6 +29,10 @@ const GlobeContext = createContext<{
   setUserLocation: (loc: { lng: number; lat: number } | null) => void;
   locationStatus: LocationStatus;
   setLocationStatus: (status: LocationStatus) => void;
+  hasSpeciesData: boolean;
+  setHasSpeciesData: (has: boolean) => void;
+  speciesLocations: SpeciesLocations | null;
+  setSpeciesLocations: (loc: SpeciesLocations | null) => void;
 }>({
   isOpen: false,
   setIsOpen: () => {},
@@ -31,6 +40,10 @@ const GlobeContext = createContext<{
   setUserLocation: () => {},
   locationStatus: "idle",
   setLocationStatus: () => {},
+  hasSpeciesData: false,
+  setHasSpeciesData: () => {},
+  speciesLocations: null,
+  setSpeciesLocations: () => {},
 });
 
 export function GlobeProvider({ children }: { children: React.ReactNode }) {
@@ -40,6 +53,8 @@ export function GlobeProvider({ children }: { children: React.ReactNode }) {
     lat: number;
   } | null>(null);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
+  const [hasSpeciesData, setHasSpeciesData] = useState(false);
+  const [speciesLocations, setSpeciesLocations] = useState<SpeciesLocations | null>(null);
 
   return (
     <GlobeContext.Provider
@@ -50,6 +65,10 @@ export function GlobeProvider({ children }: { children: React.ReactNode }) {
         setUserLocation,
         locationStatus,
         setLocationStatus,
+        hasSpeciesData,
+        setHasSpeciesData,
+        speciesLocations,
+        setSpeciesLocations,
       }}
     >
       {children}
@@ -62,7 +81,7 @@ export function useGlobePanel() {
 }
 
 export function GlobeToggleButton() {
-  const { isOpen, setIsOpen } = useGlobePanel();
+  const { isOpen, setIsOpen, hasSpeciesData } = useGlobePanel();
 
   return (
     <AnimatePresence>
@@ -73,7 +92,7 @@ export function GlobeToggleButton() {
           exit={{ opacity: 0, x: -20, transition: { duration: 0 } }}
           transition={{ duration: 0.3 }}
           onClick={() => setIsOpen(true)}
-          className="rounded-lg bg-gray-100 p-2 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+          className="relative rounded-lg bg-gray-100 p-2 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
           aria-label="Open globe"
         >
           <svg
@@ -101,6 +120,12 @@ export function GlobeToggleButton() {
               d="M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9z"
             />
           </svg>
+          {hasSpeciesData && (
+            <span className="absolute -right-1 -top-1 h-3 w-3">
+              <span className="absolute inset-0 animate-ping rounded-full bg-[rgb(234,179,8)] opacity-75" />
+              <span className="absolute inset-0 rounded-full bg-[rgb(234,179,8)]" />
+            </span>
+          )}
         </motion.button>
       )}
     </AnimatePresence>
@@ -216,8 +241,27 @@ export function LocationButton() {
   );
 }
 
+// Layer/source IDs used for species data on the map
+const SPECIES_LAYERS = [
+  "species-countries-fill",
+  "species-countries-line",
+  "species-clusters",
+  "species-cluster-count",
+  "species-points",
+];
+const SPECIES_SOURCES = ["species-countries", "species-occurrences"];
+
+function removeSpeciesLayers(map: mapboxgl.Map) {
+  for (const id of SPECIES_LAYERS) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  for (const id of SPECIES_SOURCES) {
+    if (map.getSource(id)) map.removeSource(id);
+  }
+}
+
 export default function MapGlobePanel() {
-  const { isOpen, setIsOpen, userLocation } = useGlobePanel();
+  const { isOpen, setIsOpen, userLocation, speciesLocations } = useGlobePanel();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const rotationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
@@ -380,6 +424,143 @@ export default function MapGlobePanel() {
       map.once("style.load", () => drawRoute(map));
     }
   }, [userLocation]);
+
+  // Species data layers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const drawSpecies = () => {
+      removeSpeciesLayers(map);
+
+      if (!speciesLocations) return;
+
+      const { countryCodes, occurrences } = speciesLocations;
+
+      // Country highlights via Mapbox country boundaries
+      if (countryCodes.length > 0) {
+        if (!map.getSource("species-countries")) {
+          map.addSource("species-countries", {
+            type: "vector",
+            url: "mapbox://mapbox.country-boundaries-v1",
+          });
+        }
+
+        map.addLayer({
+          id: "species-countries-fill",
+          type: "fill",
+          source: "species-countries",
+          "source-layer": "country_boundaries",
+          filter: ["in", ["get", "iso_3166_1"], ["literal", countryCodes]],
+          paint: {
+            "fill-color": "rgba(234, 179, 8, 0.25)",
+          },
+        });
+
+        map.addLayer({
+          id: "species-countries-line",
+          type: "line",
+          source: "species-countries",
+          "source-layer": "country_boundaries",
+          filter: ["in", ["get", "iso_3166_1"], ["literal", countryCodes]],
+          paint: {
+            "line-color": "rgb(234, 179, 8)",
+            "line-width": 1,
+          },
+        });
+      }
+
+      // GBIF occurrence points (clustered)
+      if (occurrences.length > 0) {
+        const geojson: GeoJSON.FeatureCollection = {
+          type: "FeatureCollection",
+          features: occurrences.map((o) => ({
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: [o.lng, o.lat] },
+            properties: { year: o.year, country: o.country },
+          })),
+        };
+
+        map.addSource("species-occurrences", {
+          type: "geojson",
+          data: geojson,
+          cluster: true,
+          clusterRadius: 50,
+          clusterMaxZoom: 14,
+        });
+
+        // Cluster circles
+        map.addLayer({
+          id: "species-clusters",
+          type: "circle",
+          source: "species-occurrences",
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": "rgb(234, 179, 8)",
+            "circle-radius": [
+              "step",
+              ["get", "point_count"],
+              12, 10,
+              16, 50,
+              22, 100,
+              28,
+            ],
+            "circle-opacity": 0.7,
+          },
+        });
+
+        // Cluster count labels
+        map.addLayer({
+          id: "species-cluster-count",
+          type: "symbol",
+          source: "species-occurrences",
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": "{point_count_abbreviated}",
+            "text-size": 11,
+          },
+          paint: {
+            "text-color": "#fff",
+          },
+        });
+
+        // Individual points
+        map.addLayer({
+          id: "species-points",
+          type: "circle",
+          source: "species-occurrences",
+          filter: ["!", ["has", "point_count"]],
+          paint: {
+            "circle-color": "rgb(234, 179, 8)",
+            "circle-radius": 4,
+            "circle-opacity": 0.8,
+            "circle-stroke-width": 1,
+            "circle-stroke-color": "#fff",
+          },
+        });
+
+        // Fit bounds to occurrences
+        const bounds = new mapboxgl.LngLatBounds();
+        for (const o of occurrences) {
+          bounds.extend([o.lng, o.lat]);
+        }
+        if (!bounds.isEmpty()) {
+          // Stop auto-rotation
+          if (rotationIntervalRef.current) {
+            clearInterval(rotationIntervalRef.current);
+            rotationIntervalRef.current = null;
+          }
+          map.fitBounds(bounds, { padding: 60, maxZoom: 5 });
+        }
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      drawSpecies();
+    } else {
+      map.once("style.load", drawSpecies);
+    }
+  }, [speciesLocations]);
 
   return (
     <AnimatePresence>
