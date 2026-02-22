@@ -695,7 +695,7 @@ function HomeContent({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={placeholderText}
-                className={`w-full rounded-lg border border-gray-300 px-5 py-4 pr-14 text-lg text-black outline-none transition-colors focus:border-[rgb(234,179,8)] dark:border-gray-700 dark:bg-black dark:text-white ${
+                className={`w-full rounded-lg border-2 border-gray-900 px-5 py-4 pr-14 text-lg text-black placeholder-gray-800 outline-none transition-colors focus:border-[rgb(234,179,8)] dark:border-gray-300 dark:bg-black dark:text-white dark:placeholder-gray-300 ${
                   query ? "" : "font-serif placeholder:font-serif"
                 }`}
               />
