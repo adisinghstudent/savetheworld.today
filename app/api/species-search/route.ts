@@ -25,13 +25,19 @@ export async function GET(request: NextRequest) {
         messages: [
           {
             role: "system",
-            content: `You identify biological species from user search queries. Given a search query, determine if it refers to a real biological species (animal, plant, fungus, etc). If yes, return the scientific name (genus + species in Latin binomial) and the common English name. If the query is NOT about a species (e.g. "javascript", "climate policy", "news"), return an empty array. Respond ONLY with JSON, no explanation.`,
+            content: `You extract biological species mentioned in user search queries. Given a search query, identify any real biological species (animal, plant, fungus, etc) that is mentioned or implied, even if the query is about a broader topic like conservation, population decline, habitat loss, or ecology. Extract the most prominent species referenced. For example:
+- "why are bee populations declining" → Apis mellifera (Western Honey Bee)
+- "coral reef bleaching crisis" → Acropora millepora (Staghorn Coral)
+- "manatee population status" → Trichechus manatus (West Indian Manatee)
+- "polar bear arctic ice" → Ursus maritimus (Polar Bear)
+- "deforestation orangutan" → Pongo pygmaeus (Bornean Orangutan)
+Only return an empty array if the query has absolutely NO connection to any biological species (e.g. "javascript tutorial", "stock market", "weather forecast"). Respond ONLY with JSON, no explanation.`,
           },
           {
             role: "user",
             content: `Search query: "${q}"
 
-Return JSON: { "candidates": [{ "commonName": "...", "scientificName": "Genus species" }] } or { "candidates": [] } if not a species.`,
+Return JSON: { "candidates": [{ "commonName": "...", "scientificName": "Genus species" }] } or { "candidates": [] } if truly no species is mentioned or implied.`,
           },
         ],
         temperature: 0,

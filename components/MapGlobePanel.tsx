@@ -106,51 +106,47 @@ export function GlobeToggleButton() {
   const { isOpen, setIsOpen, hasSpeciesData } = useGlobePanel();
 
   return (
-    <AnimatePresence>
-      {!isOpen && (
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20, transition: { duration: 0 } }}
-          transition={{ duration: 0.3 }}
-          onClick={() => setIsOpen(true)}
-          className="relative rounded-lg bg-gray-100 p-2 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-          aria-label="Open globe"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M12 21a9 9 0 100-18 9 9 0 000 18z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M3.6 9h16.8M3.6 15h16.8"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9z"
-            />
-          </svg>
-          {hasSpeciesData && (
-            <span className="absolute -right-1 -top-1 h-3 w-3">
-              <span className="absolute inset-0 animate-ping rounded-full bg-[rgb(234,179,8)] opacity-75" />
-              <span className="absolute inset-0 rounded-full bg-[rgb(234,179,8)]" />
-            </span>
-          )}
-        </motion.button>
+    <button
+      onClick={() => setIsOpen(!isOpen)}
+      className={`relative rounded-lg p-2 transition-colors ${
+        isOpen
+          ? "bg-[rgb(234,179,8)]/15 text-[rgb(234,179,8)]"
+          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+      }`}
+      aria-label={isOpen ? "Close globe" : "Open globe"}
+    >
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M12 21a9 9 0 100-18 9 9 0 000 18z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M3.6 9h16.8M3.6 15h16.8"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9z"
+        />
+      </svg>
+      {!isOpen && hasSpeciesData && (
+        <span className="absolute -right-1 -top-1 h-3 w-3">
+          <span className="absolute inset-0 animate-ping rounded-full bg-[rgb(234,179,8)] opacity-75" />
+          <span className="absolute inset-0 rounded-full bg-[rgb(234,179,8)]" />
+        </span>
       )}
-    </AnimatePresence>
+    </button>
   );
 }
 
@@ -194,72 +190,59 @@ export function LocationButton() {
   const isSuccess = locationStatus === "success";
 
   return (
-    <AnimatePresence>
-      {!isOpen && (
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{
-            opacity: 1,
-            x: isError ? [0, -4, 4, -4, 4, 0] : 0,
-          }}
-          exit={{ opacity: 0, x: -20, transition: { duration: 0 } }}
-          transition={
-            isError
-              ? { x: { duration: 0.4 }, opacity: { duration: 0.3 } }
-              : { duration: 0.3 }
-          }
-          onClick={handleClick}
-          className={`p-2 transition-colors ${
-            isError
-              ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-          }`}
-          aria-label="Show my location on globe"
+    <button
+      onClick={handleClick}
+      className={`rounded-lg p-2 transition-colors ${
+        isError
+          ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+          : isSuccess
+            ? "bg-gray-100 text-[rgb(234,179,8)] hover:bg-gray-200 dark:bg-gray-900 dark:hover:bg-gray-800"
+            : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+      }`}
+      aria-label="Show my location on globe"
+    >
+      {isLoading ? (
+        <svg
+          className="h-5 w-5 animate-spin"
+          fill="none"
+          viewBox="0 0 24 24"
         >
-          {isLoading ? (
-            <svg
-              className="h-5 w-5 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-              />
-            </svg>
-          ) : (
-            <svg
-              className="h-5 w-5"
-              fill={isSuccess ? "currentColor" : "none"}
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
-              />
-            </svg>
-          )}
-        </motion.button>
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+          />
+        </svg>
+      ) : (
+        <svg
+          className="h-5 w-5"
+          fill={isSuccess ? "currentColor" : "none"}
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
+          />
+        </svg>
       )}
-    </AnimatePresence>
+    </button>
   );
 }
 

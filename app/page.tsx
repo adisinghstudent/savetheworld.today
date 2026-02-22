@@ -238,15 +238,23 @@ function HomeContent({
   setBrowserUrl: (url: string | null) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [currentTopic, _setCurrentTopic] = useState(() => loadFromSession("currentTopic", ""));
+  const [currentTopic, _setCurrentTopic] = useState("");
   const [loading, setLoading] = useState(false);
-  const [results, _setResults] = useState<GroupedResults>(() => loadFromSession("results", {}));
+  const [results, _setResults] = useState<GroupedResults>({});
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<[number, number]>([0, 30]);
   const [useProxy, setUseProxy] = useState(true);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const { isOpen } = useChatPanel();
   const { setHasSpeciesData, setSpeciesLocations, setIsOpen, setRedListCategory } = useGlobePanel();
+
+  // Restore state from sessionStorage after hydration
+  useEffect(() => {
+    const topic = loadFromSession("currentTopic", "");
+    const savedResults = loadFromSession<GroupedResults>("results", {});
+    if (topic) _setCurrentTopic(topic);
+    if (Object.keys(savedResults).length > 0) _setResults(savedResults);
+  }, []);
 
   // Wrap setters to persist to sessionStorage
   const setCurrentTopic = (topic: string) => {
@@ -561,7 +569,7 @@ function HomeContent({
         </ErrorBoundary>
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className={`flex-1 ${currentTopic ? 'overflow-y-auto' : 'overflow-hidden'}`}>
           <main className={`mx-auto h-full ${currentTopic ? 'max-w-full px-2 py-2' : 'flex max-w-7xl flex-col px-4 pt-6'}`}>
         {/* Top Bar with Search - Only show after first search */}
         {currentTopic && (
@@ -645,25 +653,6 @@ function HomeContent({
             </motion.form>
             <ChatToggleButton />
           </div>
-        )}
-
-        {/* Header / Branding - Only show before first search */}
-        {!currentTopic && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-6 flex flex-col items-center gap-2 pt-2"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/savetheworld.png" alt="Save the World" className="h-12 w-12" />
-            <h1 className="font-serif text-4xl font-normal text-black dark:text-white">
-              Save the <span className="text-[rgb(234,179,8)]">World</span>
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              AI-powered conservation intelligence
-            </p>
-          </motion.div>
         )}
 
         {/* Mentions Carousel - Only show before first search */}
@@ -784,10 +773,10 @@ function HomeContent({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 40 }}
               transition={{ duration: 0.5 }}
-              className="mx-auto w-full max-w-5xl overflow-hidden rounded-t-2xl" style={{ marginBottom: '-8%' }}
+              className="mx-auto w-full max-w-5xl overflow-hidden rounded-t-2xl"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/savetheworldhero.png" alt="Save the World" className="mx-auto w-full" />
+              <img src="/savetheworldhero.png" alt="Save the World" className="mx-auto w-full" style={{ marginBottom: '-8%' }} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1219,7 +1208,12 @@ function HomeContent({
 }
 
 export default function Home() {
-  const [browserUrl, _setBrowserUrl] = useState<string | null>(() => loadFromSession("browserUrl", null));
+  const [browserUrl, _setBrowserUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = loadFromSession<string | null>("browserUrl", null);
+    if (saved) _setBrowserUrl(saved);
+  }, []);
 
   const setBrowserUrl = (url: string | null) => {
     _setBrowserUrl(url);
