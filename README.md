@@ -6,7 +6,7 @@ Built for [Hack Europe](https://hackeurope.com) by a team that believes technolo
 
 > *"The planet is literally on fire and we're using AI to generate memes. Can we redirect some of that compute to saving ecosystems?"* — r/Futurology
 
-![Save the World — Homepage](public/homepage.png)
+![Save the World — Homepage](demos/first.jpeg)
 
 ---
 
@@ -24,7 +24,7 @@ Type a query. Get results from YouTube, Twitter/X, Reddit, LinkedIn, news outlet
 
 Then ask the AI assistant anything about what you're reading.
 
-![Search Results](public/search.png)
+![Search Results](demos/page.png)
 
 ---
 
@@ -49,12 +49,12 @@ A Mapbox-powered 3D globe that visualizes where species actually live:
 - **GBIF observation points** — up to 300 real-world sighting records, clustered at low zoom
 - **Auto-rotation** — the globe slowly spins until you interact with it
 
-![Video with Globe Sidebar](public/video-sidebar.png)
+![Species Globe — Tiger Range](demos/tigermap.jpeg)
 
 ### AI Conservation Assistant
 An AI chat panel (powered by [Cerebras](https://cerebras.ai)) that knows about wildlife, climate, and ecology. When you're browsing a webpage, the assistant pre-crawls it so you can ask questions about what you're reading — instantly, no waiting.
 
-![Article with AI Sidebar](public/article-sidebar.png)
+![Video Browser with AI Chat](demos/video.jpeg)
 
 ### Built-In Browser with Proxy
 View any webpage directly inside the app. Sites that block iframes (BBC, CNN, NYT, Reddit, LinkedIn) are automatically proxied. Videos from YouTube, Vimeo, and TikTok play natively.
