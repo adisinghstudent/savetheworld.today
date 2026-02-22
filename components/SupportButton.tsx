@@ -26,7 +26,7 @@ const lightAppearance = {
     colorDanger: "#ef4444",
     borderRadius: "8px",
     fontFamily:
-      'ABCDiatype, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
   rules: {
     ".Input": {
@@ -49,7 +49,7 @@ const darkAppearance = {
     colorDanger: "#ef4444",
     borderRadius: "8px",
     fontFamily:
-      'ABCDiatype, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
   rules: {
     ".Input": {
